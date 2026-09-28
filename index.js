@@ -3,22 +3,29 @@ import makeWASocket, {
     normalizeMessageContent,
     useMultiFileAuthState 
 } from '@whiskeysockets/baileys';
+import { readFile } from 'node:fs/promises';
 import { Boom } from '@hapi/boom';
 import pino from 'pino';
 import cron from 'node-cron';
 import qrcode from 'qrcode-terminal';
 
 // Target group JID format: [group-id]@g.us
-const NOTICE_GROUP_JID = '120363406812832614@g.us';
-const CR_DEFAULT_REPLY = 'Porte jao , Distap Hcche';
-const CR_COMMAND_REPLIES = {
-    classtime: 'Classtime details will be added soon.',
-    examtime: 'Examtime details will be added soon.',
-    special: 'Special announcements will be added soon.',
-    assignment: 'Assignment details will be added soon.',
-    classtest: 'Classtest details will be added soon.',
-    labtest: 'Labtest details will be added soon.'
-};
+const NOTICE_GROUP_JID = '120363430226894816@g.us';
+const BOT_DATA_FILE = new URL('./bot-data.json', import.meta.url);
+const DEFAULT_CR_REPLY = 'Porte jao , Distap Hcche';
+
+async function loadCrReplies() {
+    try {
+        const data = JSON.parse(await readFile(BOT_DATA_FILE, 'utf8'));
+        return {
+            default: data.default || DEFAULT_CR_REPLY,
+            commands: data.commands || {}
+        };
+    } catch (error) {
+        console.error('Could not load bot-data.json:', error);
+        return { default: DEFAULT_CR_REPLY, commands: {} };
+    }
+}
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_session');
@@ -90,8 +97,9 @@ async function startBot() {
             const commandMatch = text.match(/\bCR\b(?:\s+([a-z]+))?/i);
             if (commandMatch) {
                 const chainedCommand = commandMatch[1]?.toLowerCase();
+                const crReplies = await loadCrReplies();
                 const reply =
-                    CR_COMMAND_REPLIES[chainedCommand] || CR_DEFAULT_REPLY;
+                    crReplies.commands[chainedCommand] || crReplies.default;
 
                 await sock.sendMessage(
                     senderJid,

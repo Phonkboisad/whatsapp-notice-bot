@@ -98,7 +98,7 @@ Porte jao , Distap Hcche
 
 ### Chained commands
 
-The following commands currently return temporary placeholder replies:
+The following commands read their replies from `bot-data.json`:
 
 ```text
 CR classtime
@@ -109,7 +109,23 @@ CR classtest
 CR labtest
 ```
 
-Their replies are configured in `CR_COMMAND_REPLIES` near the top of `index.js`. Replace those placeholder strings with the final class, exam, announcement, assignment, or test details.
+Edit the values in `bot-data.json` each day:
+
+```json
+{
+	"default": "Porte jao , Distap Hcche",
+	"commands": {
+		"classtime": "09:00 AM - Room 402",
+		"examtime": "10:00 AM - Mathematics",
+		"special": "Guest lecture today",
+		"assignment": "Submit Assignment 3 by 8 PM",
+		"classtest": "Class test at 11:00 AM",
+		"labtest": "Lab test in Lab 2 at 2:00 PM"
+	}
+}
+```
+
+The bot reads `bot-data.json` whenever it receives a `CR` command, so you do not need to restart it after updating the file. Keep the JSON valid and preserve the command names. If the file cannot be read, the bot uses the default reply and logs an error in the terminal.
 
 The command parser also accepts extra text before or after `CR`, for example:
 
@@ -156,6 +172,7 @@ Never commit `auth_session/`, `node_modules/`, `.env`, or log files.
 
 ```text
 index.js          Bot connection, scheduler, and command handling
+bot-data.json     Daily CR replies and chained command content
 package.json      Project metadata and dependencies
 package-lock.json Locked dependency versions
 README.md         Setup and usage guide
