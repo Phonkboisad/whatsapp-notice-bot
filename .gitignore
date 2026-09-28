@@ -1,0 +1,10 @@
+# WhatsApp session credentials & encryption keys
+auth_session/
+
+# Dependencies
+node_modules/
+
+# Environment files and logs
+.env
+*.log
+npm-debug.log*
