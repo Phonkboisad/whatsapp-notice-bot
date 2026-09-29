@@ -163,6 +163,8 @@ please CR classtime
 In the mod group, send a message with an image, video, document, audio file,
 sticker, or album and use `CR echo notice` or `CR echo discussion` as its
 caption when supported. The bot forwards that message to the selected group.
+It then edits the forwarded caption to remove the `CR echo ...` command while
+keeping any text after the destination name.
 You can also reply to a message with an attachment using one of those commands.
 Text-only echoes keep the existing format:
 

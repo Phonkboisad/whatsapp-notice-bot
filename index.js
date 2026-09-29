@@ -1,5 +1,6 @@
 import makeWASocket, { 
     DisconnectReason, 
+    downloadMediaMessage,
     normalizeMessageContent,
     useMultiFileAuthState 
 } from '@whiskeysockets/baileys';
@@ -141,7 +142,43 @@ async function startBot() {
                     const quotedMessageHasMedia = mediaTypes.some(type => quotedContent?.[type]);
 
                     if (messageHasMedia) {
-                        await sock.sendMessage(targetJid, { forward: m });
+                        const forwardedMessage = await sock.sendMessage(targetJid, { forward: m });
+                        if (forwardedMessage?.key) {
+                            const mediaType = [
+                                'imageMessage',
+                                'videoMessage',
+                                'documentMessage'
+                            ].find(type => message[type]?.caption !== undefined);
+
+                            if (mediaType) {
+                                try {
+                                    const mediaBuffer = await downloadMediaMessage(m, 'buffer', {});
+                                    const sourceMedia = message[mediaType];
+                                    const editContent = {
+                                        [mediaType.replace('Message', '').toLowerCase()]: mediaBuffer,
+                                        caption: echoText ?? '',
+                                        edit: forwardedMessage.key
+                                    };
+
+                                    if (sourceMedia.mimetype) editContent.mimetype = sourceMedia.mimetype;
+                                    if (mediaType === 'documentMessage' && sourceMedia.fileName) {
+                                        editContent.fileName = sourceMedia.fileName;
+                                    }
+                                    if (mediaType === 'videoMessage' && sourceMedia.gifPlayback) {
+                                        editContent.gifPlayback = sourceMedia.gifPlayback;
+                                    }
+
+                                    await sock.sendMessage(targetJid, editContent);
+                                } catch (error) {
+                                    console.error('Could not remove the echo command from the forwarded caption:', error);
+                                    await sock.sendMessage(
+                                        senderJid,
+                                        { text: 'The attachment was forwarded, but its caption could not be cleaned.' },
+                                        { quoted: m }
+                                    );
+                                }
+                            }
+                        }
                     } else if (quotedMessageHasMedia) {
                         await sock.sendMessage(targetJid, {
                             forward: {
