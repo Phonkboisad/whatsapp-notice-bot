@@ -1,5 +1,5 @@
 {
-  "default": "Elman Ke Chudi",
+  "default": "Elman Chudi ",
   "commands": {
     "classtime": "No Upcoming Classes till miD! jao porte bosho 👉👈",
     "examtime": "NEXT EXAM SCHEDULE -\n Date: 01/10/2026 \n Subject: GEED-2302 \n Time Slot: 9:30Am- 11:00AM",
@@ -7,5 +7,10 @@
     "assignment": "NO Pending Assignment",
     "classtest": "Classtest details will be added soon.",
     "labreport": "Pending Labreport : \n Lab report 2,3 (DLD)"
+  },
+  "images": {
+    "bus-class": "assets/bus-class.jpg",
+    "bus-exam": "assets/bus-exam.jpg",
+    "bus-friday": "assets/bus-friday.jpg"
   }
 }

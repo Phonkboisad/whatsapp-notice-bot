@@ -19,12 +19,33 @@ async function loadCrReplies() {
         const data = JSON.parse(await readFile(BOT_DATA_FILE, 'utf8'));
         return {
             default: data.default || DEFAULT_CR_REPLY,
-            commands: data.commands || {}
+            commands: data.commands || {},
+            images: data.images || {}
         };
     } catch (error) {
         console.error('Could not load bot-data.json:', error);
-        return { default: DEFAULT_CR_REPLY, commands: {} };
+        return { default: DEFAULT_CR_REPLY, commands: {}, images: {} };
     }
+}
+
+function formatCrHelp({ commands, images }) {
+    const textCommands = Object.keys(commands)
+        .map(command => '• `CR ' + command + '`')
+        .join('\n');
+    const imageCommands = Object.keys(images)
+        .map(command => '• `CR ' + command + '`')
+        .join('\n');
+
+    return [
+        '*Available commands*',
+        '',
+        '*Text replies*',
+        '• `CR` (default reply)',
+        textCommands,
+        '',
+        '*Schedule images*',
+        imageCommands
+    ].filter(Boolean).join('\n');
 }
 
 async function startBot() {
@@ -94,10 +115,32 @@ async function startBot() {
                 message.documentMessage?.caption ||
                 '';
 
-            const commandMatch = text.match(/\bCR\b(?:\s+([a-z]+))?/i);
+            const commandMatch = text.match(/\bCR\b(?:\s+([a-z]+(?:-[a-z]+)*))?/i);
             if (commandMatch) {
                 const chainedCommand = commandMatch[1]?.toLowerCase();
                 const crReplies = await loadCrReplies();
+
+                if (chainedCommand === 'help') {
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: formatCrHelp(crReplies) },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+
+                const imagePath = crReplies.images[chainedCommand];
+
+                if (imagePath) {
+                    try {
+                        const image = await readFile(new URL(imagePath, import.meta.url));
+                        await sock.sendMessage(senderJid, { image }, { quoted: m });
+                    } catch (error) {
+                        console.error(`Could not send image for CR ${chainedCommand}:`, error);
+                    }
+                    continue;
+                }
+
                 const reply =
                     crReplies.commands[chainedCommand] || crReplies.default;
 

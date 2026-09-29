@@ -11,6 +11,7 @@ A WhatsApp group bot for class reminders and `CR` commands, built with
 - Lists participating group names and IDs after connecting.
 - Sends a scheduled class reminder to the configured group from Sunday through Thursday at 08:30.
 - Responds to `CR` commands in the configured group.
+- Sends bus schedule images for `CR bus-class`, `CR bus-exam`, and `CR bus-friday`.
 - Reconnects automatically after most connection interruptions.
 
 ## Requirements
@@ -106,8 +107,28 @@ CR examtime
 CR special
 CR assignment
 CR classtest
-CR labtest
+CR labreport
+CR bus-class
+CR bus-exam
+CR bus-friday
+CR help
 ```
+
+`CR help` replies with the available commands, formatted with WhatsApp bold
+headings and monospace command names. Its list updates from `bot-data.json`.
+
+The three bus commands send the matching image as a quoted reply. Add these files
+to the `assets/` directory:
+
+```text
+assets/bus-class.jpg
+assets/bus-exam.jpg
+assets/bus-friday.jpg
+```
+
+The image paths are configured in the `images` object in `bot-data.json`. If a
+file is missing or cannot be read, the bot logs an error and does not send a
+fallback text reply for that image command.
 
 Edit the values in `bot-data.json` each day:
 
@@ -119,8 +140,12 @@ Edit the values in `bot-data.json` each day:
 		"examtime": "10:00 AM - Mathematics",
 		"special": "Guest lecture today",
 		"assignment": "Submit Assignment 3 by 8 PM",
-		"classtest": "Class test at 11:00 AM",
-		"labtest": "Lab test in Lab 2 at 2:00 PM"
+		"classtest": "Class test at 11:00 AM"
+	},
+	"images": {
+		"bus-class": "assets/bus-class.jpg",
+		"bus-exam": "assets/bus-exam.jpg",
+		"bus-friday": "assets/bus-friday.jpg"
 	}
 }
 ```
