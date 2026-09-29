@@ -6,13 +6,14 @@ import makeWASocket, {
 import { readFile } from 'node:fs/promises';
 import { Boom } from '@hapi/boom';
 import pino from 'pino';
-import cron from 'node-cron';
 import qrcode from 'qrcode-terminal';
 
-// Target group JID format: [group-id]@g.us
-const NOTICE_GROUP_JID = '120363430226894816@g.us';
+const NOTICE_GROUP_JID = '120363400837000305@g.us';
+const DISCUSSION_GROUP_JID = '120363406812832614@g.us';
+const MOD_GROUP_JID = '120363430226894816@g.us';
 const BOT_DATA_FILE = new URL('./bot-data.json', import.meta.url);
 const DEFAULT_CR_REPLY = 'Porte jao , Distap Hcche';
+let repliesEnabled = true;
 
 async function loadCrReplies() {
     try {
@@ -87,24 +88,12 @@ async function startBot() {
         }
     });
 
-    // Schedule: Sunday to Thursday at 8:30 AM
-    cron.schedule('30 8 * * 0-4', async () => {
-        const announcement = 
-            `📢 *Class Reminder*\n\n` +
-            `• 09:00 AM - 10:30 AM: Room 402\n` +
-            `• 11:00 AM - 12:30 PM: Lab 2\n\n` +
-            `_Check course portal for materials._`;
-
-        await sock.sendMessage(NOTICE_GROUP_JID, { text: announcement });
-    });
-
     // Handle CR commands
     sock.ev.on('messages.upsert', async ({ messages }) => {
         for (const m of messages) {
             if (!m.message || m.key.fromMe) continue;
 
             const senderJid = m.key.remoteJid;
-            if (senderJid !== NOTICE_GROUP_JID) continue;
 
             const message = normalizeMessageContent(m.message) || m.message;
             const text =
@@ -114,6 +103,40 @@ async function startBot() {
                 message.videoMessage?.caption ||
                 message.documentMessage?.caption ||
                 '';
+
+            const isModGroup = senderJid === MOD_GROUP_JID;
+
+            if (isModGroup) {
+                const controlMatch = text.match(/^\s*CR\s+(start|stop)\s*$/i);
+                if (controlMatch) {
+                    repliesEnabled = controlMatch[1].toLowerCase() === 'start';
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: `Bot replies ${repliesEnabled ? 'started' : 'stopped'}.` },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+
+                const echoMatch = text.match(
+                    /^\s*CR\s+echo\s+(notice|discussion)\s+"([\s\S]*)"\s*$/i
+                );
+                if (echoMatch) {
+                    const targetJid = echoMatch[1].toLowerCase() === 'notice'
+                        ? NOTICE_GROUP_JID
+                        : DISCUSSION_GROUP_JID;
+                    await sock.sendMessage(targetJid, { text: echoMatch[2] });
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: `Message sent to the ${echoMatch[1].toLowerCase()} group.` },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+            }
+
+            if (!isModGroup && senderJid !== DISCUSSION_GROUP_JID) continue;
+            if (!isModGroup && !repliesEnabled) continue;
 
             const commandMatch = text.match(/\bCR\b(?:\s+([a-z]+(?:-[a-z]+)*))?/i);
             if (commandMatch) {
