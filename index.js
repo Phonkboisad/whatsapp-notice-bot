@@ -119,13 +119,51 @@ async function startBot() {
                 }
 
                 const echoMatch = text.match(
-                    /^\s*CR\s+echo\s+(notice|discussion)\s+"([\s\S]*)"\s*$/i
+                    /^\s*CR\s+echo\s+(notice|discussion)(?:\s+(?:"([\s\S]*)"|([\s\S]*\S)))?\s*$/i
                 );
                 if (echoMatch) {
                     const targetJid = echoMatch[1].toLowerCase() === 'notice'
                         ? NOTICE_GROUP_JID
                         : DISCUSSION_GROUP_JID;
-                    await sock.sendMessage(targetJid, { text: echoMatch[2] });
+                    const echoText = echoMatch[2] ?? echoMatch[3];
+                    const contextInfo = message.extendedTextMessage?.contextInfo;
+                    const quotedMessage = contextInfo?.quotedMessage;
+                    const quotedContent = normalizeMessageContent(quotedMessage) || quotedMessage;
+                    const mediaTypes = [
+                        'imageMessage',
+                        'videoMessage',
+                        'audioMessage',
+                        'documentMessage',
+                        'stickerMessage',
+                        'albumMessage'
+                    ];
+                    const messageHasMedia = mediaTypes.some(type => message[type]);
+                    const quotedMessageHasMedia = mediaTypes.some(type => quotedContent?.[type]);
+
+                    if (messageHasMedia) {
+                        await sock.sendMessage(targetJid, { forward: m });
+                    } else if (quotedMessageHasMedia) {
+                        await sock.sendMessage(targetJid, {
+                            forward: {
+                                key: {
+                                    remoteJid: senderJid,
+                                    id: contextInfo.stanzaId,
+                                    participant: contextInfo.participant
+                                },
+                                message: quotedMessage
+                            }
+                        });
+                    } else if (echoText !== undefined) {
+                        await sock.sendMessage(targetJid, { text: echoText });
+                    } else {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Attach a file or reply to a message with an attachment.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
                     await sock.sendMessage(
                         senderJid,
                         { text: `Message sent to the ${echoMatch[1].toLowerCase()} group.` },

@@ -158,6 +158,20 @@ The command parser also accepts extra text before or after `CR`, for example:
 please CR classtime
 ```
 
+### Mod group echo
+
+In the mod group, send a message with an image, video, document, audio file,
+sticker, or album and use `CR echo notice` or `CR echo discussion` as its
+caption when supported. The bot forwards that message to the selected group.
+You can also reply to a message with an attachment using one of those commands.
+Text-only echoes keep the existing format:
+
+```text
+CR echo discussion hello
+CR echo notice "Class starts at 9 AM"
+CR echo discussion "Please share your questions here"
+```
+
 ## Running in Production
 
 Keep the bot process running on a machine with a stable internet connection. For a simple run:
