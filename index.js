@@ -9,12 +9,13 @@ import { Boom } from '@hapi/boom';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 
-const NOTICE_GROUP_JID = 'place';
-const DISCUSSION_GROUP_JID = 'place';
+const NOTICE_GROUP_JID = '120363430226894816@g.us';
+const DISCUSSION_GROUP_JID = '120363406812832614@g.us';
 const MOD_GROUP_JID = '120363430226894816@g.us';
 const BOT_DATA_FILE = new URL('./bot-data.json', import.meta.url);
 const DEFAULT_CR_REPLY = 'Porte jao , Distap Hcche';
 let repliesEnabled = true;
+const resourceSelectionState = new Map();
 
 async function loadCrReplies() {
     try {
@@ -22,11 +23,12 @@ async function loadCrReplies() {
         return {
             default: data.default || DEFAULT_CR_REPLY,
             commands: data.commands || {},
-            images: data.images || {}
+            images: data.images || {},
+            resources: Array.isArray(data.resources) ? data.resources : []
         };
     } catch (error) {
         console.error('Could not load bot-data.json:', error);
-        return { default: DEFAULT_CR_REPLY, commands: {}, images: {} };
+        return { default: DEFAULT_CR_REPLY, commands: {}, images: {}, resources: [] };
     }
 }
 
@@ -43,11 +45,22 @@ function formatCrHelp({ commands, images }) {
         '',
         '*Text replies*',
         '• `CR` (default reply)',
+        '• `CR rsrc`',
         textCommands,
         '',
         '*Schedule images*',
         imageCommands
     ].filter(Boolean).join('\n');
+}
+
+function formatResourceMenu(resources) {
+    const lines = resources.map((resource, index) => `• ${index}. ${resource.subject}`);
+    return [
+        '*Available resources*',
+        ...lines,
+        '',
+        'Reply with the number of the subject you want.'
+    ].join('\n');
 }
 
 async function startBot() {
@@ -113,6 +126,7 @@ async function startBot() {
                 '';
 
             const isModGroup = senderJid === MOD_GROUP_JID;
+            const isAllowedGroup = senderJid === NOTICE_GROUP_JID || senderJid === DISCUSSION_GROUP_JID;
 
             if (isModGroup) {
                 const controlMatch = text.match(/^\s*CR\s+(start|stop)\s*$/i);
@@ -217,8 +231,32 @@ async function startBot() {
                 }
             }
 
-            if (!isModGroup && senderJid !== DISCUSSION_GROUP_JID) continue;
+            if (!isModGroup && !isAllowedGroup) continue;
             if (!isModGroup && !repliesEnabled) continue;
+
+            const pendingResources = resourceSelectionState.get(senderJid);
+            if (pendingResources) {
+                const choice = Number(text.trim());
+
+                if (Number.isInteger(choice) && choice >= 0 && choice < pendingResources.length) {
+                    const selected = pendingResources[choice];
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: `${selected.subject}: ${selected.link}` },
+                        { quoted: m }
+                    );
+                    resourceSelectionState.delete(senderJid);
+                    continue;
+                }
+
+                await sock.sendMessage(
+                    senderJid,
+                    { text: 'Invalid choice. Please reply with a valid number from the resource list.' },
+                    { quoted: m }
+                );
+                resourceSelectionState.delete(senderJid);
+                continue;
+            }
 
             const commandMatch = text.match(/\bCR\b(?:\s+([a-z]+(?:-[a-z]+)*))?/i);
             if (commandMatch) {
@@ -229,6 +267,25 @@ async function startBot() {
                     await sock.sendMessage(
                         senderJid,
                         { text: formatCrHelp(crReplies) },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+
+                if (chainedCommand === 'rsrc') {
+                    if (!crReplies.resources.length) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'No resources available right now.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    resourceSelectionState.set(senderJid, crReplies.resources);
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: formatResourceMenu(crReplies.resources) },
                         { quoted: m }
                     );
                     continue;
@@ -246,8 +303,7 @@ async function startBot() {
                     continue;
                 }
 
-                const reply =
-                    crReplies.commands[chainedCommand] || crReplies.default;
+                const reply = crReplies.commands[chainedCommand] || crReplies.default;
 
                 await sock.sendMessage(
                     senderJid,

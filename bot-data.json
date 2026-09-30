@@ -12,5 +12,31 @@
     "bus-class": "assets/bus-class.jpg",
     "bus-exam": "assets/bus-exam.jpg",
     "bus-friday": "assets/bus-friday.jpg"
-  }
+  },
+  "resources": [
+    {
+      "subject": "GEED",
+      "link": "https://drive.google.com/drive/folders/1s-zCsHMLjaiIc6vW01W-JT31_u7YAtmH?usp=sharing"
+    },
+    {
+      "subject": "DS",
+      "link": "pore dibo bai"
+    },
+    {
+      "subject": "MATH3",
+      "link": "pore dibo bai"
+    },
+    {
+      "subject": "Chemistry",
+      "link": "pore dimu bai"
+    },
+    {
+      "subject": "DLD",
+      "link": "pore dimu bai"
+    },
+    {
+      "subject": "SD",
+      "link": "pore dimu bai"
+    }
+  ]
 }
