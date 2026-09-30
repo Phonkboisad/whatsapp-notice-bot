@@ -9,8 +9,8 @@ import { Boom } from '@hapi/boom';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 
-const NOTICE_GROUP_JID = '120363400837000305@g.us';
-const DISCUSSION_GROUP_JID = '120363406812832614@g.us';
+const NOTICE_GROUP_JID = 'place';
+const DISCUSSION_GROUP_JID = 'place';
 const MOD_GROUP_JID = '120363430226894816@g.us';
 const BOT_DATA_FILE = new URL('./bot-data.json', import.meta.url);
 const DEFAULT_CR_REPLY = 'Porte jao , Distap Hcche';
@@ -57,6 +57,7 @@ async function startBot() {
         auth: state,
         logger: pino({ level: 'silent' })
     });
+    let connectionOpenedAt;
 
     sock.ev.on('creds.update', saveCreds);
 
@@ -67,6 +68,7 @@ async function startBot() {
         }
 
         if (connection === 'close') {
+            connectionOpenedAt = undefined;
             const shouldReconnect = 
                 (lastDisconnect?.error instanceof Boom)
                     ? lastDisconnect.error.output?.statusCode !== DisconnectReason.loggedOut
@@ -74,6 +76,7 @@ async function startBot() {
             console.log('Connection closed. Reconnecting:', shouldReconnect);
             if (shouldReconnect) startBot();
         } else if (connection === 'open') {
+            connectionOpenedAt = Math.floor(Date.now() / 1000);
             console.log('Bot is active and connected to WhatsApp!');
 
             try {
@@ -90,9 +93,13 @@ async function startBot() {
     });
 
     // Handle CR commands
-    sock.ev.on('messages.upsert', async ({ messages }) => {
+    sock.ev.on('messages.upsert', async ({ messages, type }) => {
+        if (type !== 'notify' || connectionOpenedAt === undefined) return;
+
         for (const m of messages) {
             if (!m.message || m.key.fromMe) continue;
+            const messageTimestamp = Number(m.messageTimestamp);
+            if (!Number.isFinite(messageTimestamp) || messageTimestamp < connectionOpenedAt) continue;
 
             const senderJid = m.key.remoteJid;
 
