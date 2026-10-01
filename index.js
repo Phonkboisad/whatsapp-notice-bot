@@ -9,14 +9,35 @@ import { Boom } from '@hapi/boom';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 
-const NOTICE_GROUP_JID = '120363430226894816@g.us';
+const NOTICE_GROUP_JID = '120363400837000305@g.us';
 const DISCUSSION_GROUP_JID = '120363406812832614@g.us';
 const MOD_GROUP_JID = '120363430226894816@g.us';
 const BOT_DATA_FILE = new URL('./bot-data.json', import.meta.url);
+const BOT_STATE_FILE = new URL('./bot-state.json', import.meta.url);
 const DEFAULT_CR_REPLY = 'Porte jao , Distap Hcche';
+const QUIZ_DURATION_MS = 30_000;
+const QUIZ_COOLDOWN_MS = 60_000;
 let repliesEnabled = true;
 let botDataUpdateQueue = Promise.resolve();
+let botStateUpdateQueue = Promise.resolve();
+let botStateLoadPromise;
+let botState = { quizScores: {}, quizQuestionHistory: [] };
 const resourceSelectionState = new Map();
+const activeQuizRounds = new Map();
+const quizCooldowns = new Map();
+
+function isRecord(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isValidQuizQuestion(question) {
+    return isRecord(question) &&
+        typeof question.question === 'string' && question.question.trim() &&
+        Array.isArray(question.choices) && question.choices.length === 3 &&
+        question.choices.every(choice => typeof choice === 'string' && choice.trim()) &&
+        Number.isInteger(question.answer) && question.answer >= 1 && question.answer <= 3 &&
+        typeof question.explanation === 'string' && question.explanation.trim();
+}
 
 async function loadCrReplies() {
     try {
@@ -25,12 +46,186 @@ async function loadCrReplies() {
             default: data.default || DEFAULT_CR_REPLY,
             commands: data.commands || {},
             images: data.images || {},
-            resources: Array.isArray(data.resources) ? data.resources : []
+            resources: Array.isArray(data.resources) ? data.resources : [],
+            quizQuestions: Array.isArray(data.quizQuestions)
+                ? data.quizQuestions.filter(isValidQuizQuestion)
+                : []
         };
     } catch (error) {
         console.error('Could not load bot-data.json:', error);
-        return { default: DEFAULT_CR_REPLY, commands: {}, images: {}, resources: [] };
+        return { default: DEFAULT_CR_REPLY, commands: {}, images: {}, resources: [], quizQuestions: [] };
     }
+}
+
+function ensureBotStateLoaded() {
+    if (!botStateLoadPromise) {
+        botStateLoadPromise = (async () => {
+            try {
+                const data = JSON.parse(await readFile(BOT_STATE_FILE, 'utf8'));
+                const scores = isRecord(data) && isRecord(data.quizScores) ? data.quizScores : {};
+                const quizScores = {};
+
+                for (const [groupJid, groupScores] of Object.entries(scores)) {
+                    if (!isRecord(groupScores)) continue;
+
+                    quizScores[groupJid] = Object.fromEntries(
+                        Object.entries(groupScores).filter(([, entry]) =>
+                            isRecord(entry) && typeof entry.name === 'string' &&
+                            Number.isInteger(entry.score) && entry.score >= 0
+                        )
+                    );
+                }
+
+                botState = {
+                    quizScores,
+                    quizQuestionHistory: Array.isArray(data?.quizQuestionHistory)
+                        ? data.quizQuestionHistory.filter(question => typeof question === 'string')
+                        : []
+                };
+            } catch (error) {
+                if (error.code !== 'ENOENT') {
+                    console.error('Could not load bot-state.json; starting with empty quiz scores:', error);
+                }
+                botState = { quizScores: {}, quizQuestionHistory: [] };
+            }
+        })();
+    }
+
+    return botStateLoadPromise;
+}
+
+function persistBotState() {
+    const update = botStateUpdateQueue.then(async () => {
+        const temporaryFile = new URL('./bot-state.json.tmp', import.meta.url);
+
+        try {
+            await writeFile(temporaryFile, `${JSON.stringify(botState, null, 2)}\n`, 'utf8');
+            await rename(temporaryFile, BOT_STATE_FILE);
+        } catch (error) {
+            await unlink(temporaryFile).catch(() => {});
+            throw error;
+        }
+    });
+
+    botStateUpdateQueue = update.catch(() => {});
+    return update;
+}
+
+function getQuizParticipantId(key) {
+    const participantJids = [key?.participantAlt, key?.participant];
+    const phoneJid = participantJids.find(
+        jid => typeof jid === 'string' && /^\d+(?::\d+)?@s\.whatsapp\.net$/.test(jid)
+    );
+
+    if (phoneJid) {
+        const [number] = phoneJid.split('@');
+        return `${number.split(':')[0]}@s.whatsapp.net`;
+    }
+
+    return participantJids.find(jid => typeof jid === 'string' && jid.length > 0);
+}
+
+function formatQuizQuestion(question) {
+    return [
+        '*Banglish Quiz*',
+        question.question,
+        ...question.choices.map((choice, index) => `${index + 1}. ${choice}`),
+        '',
+        '30 sec-er moddhe 1, 2, ba 3 pathao. Ekbar-i answer dite parba.'
+    ].join('\n');
+}
+
+function formatQuizScoreboard(scores) {
+    const leaders = Object.values(scores)
+        .filter(entry => isRecord(entry) && typeof entry.name === 'string' && Number.isInteger(entry.score))
+        .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name))
+        .slice(0, 5);
+
+    if (!leaders.length) return 'Ekhono keu point payni. `CR quiz` diye khela shuru koro.';
+
+    return [
+        '*Quiz Leaderboard*',
+        ...leaders.map((leader, index) => `${index + 1}. ${leader.name} - ${leader.score} point${leader.score === 1 ? '' : 's'}`)
+    ].join('\n');
+}
+
+function selectNextQuizQuestion(questions) {
+    const questionsById = new Map(questions.map(question => [question.question, question]));
+    let history = [...new Set(botState.quizQuestionHistory)]
+        .filter(question => questionsById.has(question));
+    let unseenQuestions = [...questionsById.keys()].filter(question => !history.includes(question));
+
+    if (!unseenQuestions.length) {
+        history = [];
+        unseenQuestions = [...questionsById.keys()];
+    }
+
+    const questionId = unseenQuestions[Math.floor(Math.random() * unseenQuestions.length)];
+    botState.quizQuestionHistory = [...history, questionId];
+    return questionsById.get(questionId);
+}
+
+async function finishQuizRound(sock, groupJid, round) {
+    if (activeQuizRounds.get(groupJid) !== round) return;
+
+    activeQuizRounds.delete(groupJid);
+    quizCooldowns.set(groupJid, Date.now() + QUIZ_COOLDOWN_MS);
+
+    const correctPlayers = [...round.answers.values()]
+        .filter(answer => answer.correct)
+        .map(answer => answer.name);
+    const result = correctPlayers.length
+        ? `Thik answer diyeche: ${correctPlayers.join(', ')}`
+        : 'Ei round-e keu thik answer dite pareni.';
+
+    await sock.sendMessage(groupJid, {
+        text: [
+            `Time shesh! Correct answer: ${round.question.answer}. ${round.question.choices[round.question.answer - 1]}`,
+            round.question.explanation,
+            result
+        ].join('\n')
+    });
+}
+
+async function handleQuizAnswer(sock, message, round, choice) {
+    const participantId = getQuizParticipantId(message.key);
+    if (!participantId) {
+        await sock.sendMessage(DISCUSSION_GROUP_JID, {
+            text: 'Tomake identify korte parlam na, tai answer count korte parini.',
+            quoted: message
+        });
+        return;
+    }
+
+    if (round.answers.has(participantId)) {
+        await sock.sendMessage(DISCUSSION_GROUP_JID, {
+            text: 'Ei round-e ekbar-i answer deya jabe.',
+            quoted: message
+        });
+        return;
+    }
+
+    const isCorrect = Number(choice) === round.question.answer;
+    const previousScore = botState.quizScores[DISCUSSION_GROUP_JID]?.[participantId];
+    const name = (message.pushName || previousScore?.name || 'Classmate').replace(/\s+/g, ' ').trim().slice(0, 40);
+    round.answers.set(participantId, { name, correct: isCorrect });
+
+    if (isCorrect) {
+        const groupScores = botState.quizScores[DISCUSSION_GROUP_JID] || {};
+        groupScores[participantId] = { name, score: (previousScore?.score || 0) + 1 };
+        botState.quizScores[DISCUSSION_GROUP_JID] = groupScores;
+
+        try {
+            await persistBotState();
+        } catch (error) {
+            console.error('Could not save the quiz score:', error);
+        }
+    }
+
+    await sock.sendMessage(DISCUSSION_GROUP_JID, {
+        text: isCorrect ? 'Thik! +1 point paicho.' : 'Eta thik hoyni. Answer ta round sheshe bolbo.',
+        quoted: message
+    });
 }
 
 function updateCrReply(command, reply) {
@@ -88,13 +283,24 @@ function formatCrHelp({ commands, images }) {
     return [
         '*Available commands*',
         '',
-        '*Text replies*',
+        '*General*',
         '• `CR` (default reply)',
-        '• `CR rsrc`',
+        '• `CR help`',
         textCommands,
         '',
-        '*Mod group*',
+        '*Resources*',
+        '• `CR rsrc`',
+        '',
+        '*Games*',
+        '• `CR quiz` (Discussion group)',
+        '• `CR score` (Discussion group)',
+        '',
+        '*Mod group only*',
+        '• `CR start` (enable Discussion group replies)',
+        '• `CR stop` (disable Discussion group replies)',
         '• `CR update <command> <new text>`',
+        '• `CR echo notice [text]` (or echo a caption/attachment)',
+        '• `CR echo discussion [text]` (or echo a caption/attachment)',
         '',
         '*Schedule images*',
         imageCommands
@@ -112,6 +318,7 @@ function formatResourceMenu(resources) {
 }
 
 async function startBot() {
+    await ensureBotStateLoaded();
     const { state, saveCreds } = await useMultiFileAuthState('auth_session');
 
     const sock = makeWASocket({
@@ -331,6 +538,14 @@ async function startBot() {
             if (!isModGroup && !isAllowedGroup) continue;
             if (!isModGroup && !repliesEnabled) continue;
 
+            const activeQuiz = senderJid === DISCUSSION_GROUP_JID
+                ? activeQuizRounds.get(senderJid)
+                : undefined;
+            if (activeQuiz && /^[1-3]$/.test(text.trim())) {
+                await handleQuizAnswer(sock, m, activeQuiz, text.trim());
+                continue;
+            }
+
             const pendingResources = resourceSelectionState.get(senderJid);
             if (pendingResources) {
                 const choice = Number(text.trim());
@@ -366,6 +581,82 @@ async function startBot() {
                         { text: formatCrHelp(crReplies) },
                         { quoted: m }
                     );
+                    continue;
+                }
+
+                if (chainedCommand === 'quiz') {
+                    if (senderJid !== DISCUSSION_GROUP_JID) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Quiz ta shudhu Discussion group-e khela jabe.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    if (activeQuizRounds.has(senderJid)) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Ekta quiz already cholche! 1, 2, ba 3 diye answer dao.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    const cooldownUntil = quizCooldowns.get(senderJid) || 0;
+                    if (cooldownUntil > Date.now()) {
+                        const secondsRemaining = Math.ceil((cooldownUntil - Date.now()) / 1000);
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: `Next quiz-er jonno aro ${secondsRemaining} sec wait koro.` },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    if (!crReplies.quizQuestions.length) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Ekhon kono valid quiz question nei. bot-data.json check koro.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    const previousQuestionHistory = botState.quizQuestionHistory;
+                    const question = selectNextQuizQuestion(crReplies.quizQuestions);
+                    try {
+                        await persistBotState();
+                    } catch (error) {
+                        botState.quizQuestionHistory = previousQuestionHistory;
+                        console.error('Could not save quiz question history:', error);
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Quiz ta ekhon start kora jacche na. Abar try koro.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    const round = { question, answers: new Map() };
+                    activeQuizRounds.set(senderJid, round);
+                    resourceSelectionState.delete(senderJid);
+                    setTimeout(() => {
+                        finishQuizRound(sock, senderJid, round).catch(error => {
+                            console.error('Could not finish the quiz round:', error);
+                        });
+                    }, QUIZ_DURATION_MS);
+
+                    await sock.sendMessage(senderJid, { text: formatQuizQuestion(question) });
+                    continue;
+                }
+
+                if (chainedCommand === 'score') {
+                    const scores = botState.quizScores[DISCUSSION_GROUP_JID] || {};
+                    const response = senderJid === DISCUSSION_GROUP_JID
+                        ? formatQuizScoreboard(scores)
+                        : 'Quiz score shudhu Discussion group-e dekha jabe.';
+                    await sock.sendMessage(senderJid, { text: response }, { quoted: m });
                     continue;
                 }
 

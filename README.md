@@ -117,6 +117,21 @@ CR help
 `CR help` replies with the available commands, formatted with WhatsApp bold
 headings and monospace command names. Its list updates from `bot-data.json`.
 
+### Banglish quiz
+
+In the Discussion group, send `CR quiz` to start a random general-knowledge
+question written in Banglish. Reply with `1`, `2`, or `3` within 30 seconds;
+each person gets one attempt, and a correct answer earns one point. The bot
+reveals the answer and a short explanation when time is up. A new round can
+start after a 60-second cooldown. Questions are randomized without repeats until
+the question bank is exhausted, then a new cycle begins. The used-question
+history is saved locally, so restarting the bot does not restart the cycle.
+
+Use `CR score` in Discussion to see the top five players. Scores are saved
+locally in `bot-state.json` and survive bot restarts; this file is ignored by
+Git. Edit the `quizQuestions` list in `bot-data.json` to change or add questions.
+Quiz commands are only available in the Discussion group.
+
 ### Updating a text reply
 
 In the configured mod group, update an existing text command without restarting

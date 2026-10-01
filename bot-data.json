@@ -1,42 +1,1244 @@
 {
-  "default": "use cr help for available commands",
-  "commands": {
-    "classtime": "No Upcoming Classes till miD! jao porte bosho 👉👈",
-    "examtime": "NEXT EXAM SCHEDULE -\n Date: 01/10/2026 \n Subject: GEED-2302 \n Time Slot: 9:30Am- 11:00AM",
-    "special": "Special announcements will be added soon.",
-    "assignment": "NO Pending Assignment",
-    "classtest": "Classtest details will be added soon.",
-    "labreport": "Pending Labreport : \n Lab report 2,3 (DLD)"
-  },
-  "images": {
-    "bus-class": "assets/bus-class.jpg",
-    "bus-exam": "assets/bus-exam.jpg",
-    "bus-friday": "assets/bus-friday.jpg"
-  },
-  "resources": [
-    {
-      "subject": "GEED",
-      "link": "https://drive.google.com/drive/folders/1s-zCsHMLjaiIc6vW01W-JT31_u7YAtmH?usp=sharing"
-    },
-    {
-      "subject": "DS",
-      "link": "pore dibo bai"
-    },
-    {
-      "subject": "MATH3",
-      "link": "pore dibo bai"
-    },
-    {
-      "subject": "Chemistry",
-      "link": "pore dimu bai"
-    },
-    {
-      "subject": "DLD",
-      "link": "pore dimu bai"
-    },
-    {
-      "subject": "SD",
-      "link": "pore dimu bai"
-    }
-  ]
+"default": "use cr help for available commands",
+"commands": {
+"classtime": "No Upcoming Classes till miD! jao porte bosho 👉👈",
+"examtime": "NEXT EXAM SCHEDULE -\n Date: 01/10/2026 \n Subject: GEED-2302 \n Time Slot: 9:30Am- 11:00AM",
+"special": "Special announcements will be added soon.",
+"assignment": "NO Pending Assignment",
+"classtest": "Classtest details will be added soon.",
+"labreport": "Pending Labreport : \n Lab report 2,3 (DLD)"
+},
+"images": {
+"bus-class": "assets/bus-class.jpg",
+"bus-exam": "assets/bus-exam.jpg",
+"bus-friday": "assets/bus-friday.jpg"
+},
+"resources": [
+{
+"subject": "GEED",
+"link": "https://drive.google.com/drive/folders/1s-zCsHMLjaiIc6vW01W-JT31_u7YAtmH?usp=sharing"
+},
+{
+"subject": "DS",
+"link": "pore dibo bai"
+},
+{
+"subject": "MATH3",
+"link": "pore dibo bai"
+},
+{
+"subject": "Chemistry",
+"link": "pore dimu bai"
+},
+{
+"subject": "DLD",
+"link": "pore dimu bai"
+},
+{
+"subject": "SD",
+"link": "pore dimu bai"
+}
+],
+"quizQuestions": [
+{
+"question": "Which principle does a stack data structure follow?",
+"choices": ["FIFO", "LIFO", "Random Access"],
+"answer": 2,
+"explanation": "A stack follows the Last In, First Out (LIFO) principle."
+},
+{
+"question": "Which principle does a standard queue data structure follow?",
+"choices": ["FIFO", "LIFO", "LILO"],
+"answer": 1,
+"explanation": "A standard queue operates on a First In, First Out (FIFO) basis."
+},
+{
+"question": "What is the time complexity to access an element by index in an array?",
+"choices": ["O(n)", "O(log n)", "O(1)"],
+"answer": 3,
+"explanation": "Arrays provide direct memory addressing, allowing constant time O(1) access."
+},
+{
+"question": "What is the time complexity to insert a node at the head of a singly linked list?",
+"choices": ["O(n)", "O(1)", "O(log n)"],
+"answer": 2,
+"explanation": "Inserting at the head only requires updating the head pointer, taking O(1) time."
+},
+{
+"question": "In a Binary Search Tree (BST), how does the left child compare to its parent?",
+"choices": ["It is greater", "It is smaller", "It is equal or greater"],
+"answer": 2,
+"explanation": "By definition, the left child of a BST node must hold a smaller value."
+},
+{
+"question": "Which binary tree has all leaf nodes at the same level and every internal node has two children?",
+"choices": ["Full Binary Tree", "Skewed Binary Tree", "Perfect Binary Tree"],
+"answer": 3,
+"explanation": "A perfect binary tree is completely filled at all levels."
+},
+{
+"question": "What is the technical term for a node in a graph data structure?",
+"choices": ["Edge", "Vertex", "Path"],
+"answer": 2,
+"explanation": "Nodes in a graph are called vertices, and connections are called edges."
+},
+{
+"question": "Which element is always located at the root of a Min-Heap?",
+"choices": ["The largest element", "The smallest element", "A zero value"],
+"answer": 2,
+"explanation": "In a min-heap, the parent node is always smaller than or equal to its children."
+},
+{
+"question": "What occurs when two distinct keys map to the same index in a hash table?",
+"choices": ["Collision", "Overflow", "Clustering"],
+"answer": 1,
+"explanation": "A collision occurs when a hash function maps two different keys to the same bucket."
+},
+{
+"question": "Which mathematical operator is commonly used to implement a circular queue?",
+"choices": ["Division operator", "Modulo operator", "Bitwise AND operator"],
+"answer": 2,
+"explanation": "The modulo operator wraps indices around the array boundaries."
+},
+{
+"question": "Which data structure manages function call frames during program execution?",
+"choices": ["Queue", "Stack", "Binary Tree"],
+"answer": 2,
+"explanation": "The runtime call stack tracks active function calls and local variables."
+},
+{
+"question": "What type of data structure is an AVL tree?",
+"choices": ["Self-balancing Binary Search Tree", "Unbalanced Binary Tree", "Multi-way Tree"],
+"answer": 1,
+"explanation": "An AVL tree is a height-balanced binary search tree that automatically rebalances."
+},
+{
+"question": "How many pointers does each node contain in a standard doubly linked list?",
+"choices": ["1 pointer", "2 pointers", "3 pointers"],
+"answer": 2,
+"explanation": "Each node maintains two pointers: one to the next node and one to the previous node."
+},
+{
+"question": "Which data structure is best suited for converting an infix expression to postfix?",
+"choices": ["Queue", "Tree", "Stack"],
+"answer": 3,
+"explanation": "A stack manages operator precedence and parentheses during parsing."
+},
+{
+"question": "Which data structure is typically used to implement an efficient priority queue?",
+"choices": ["Array", "Linked List", "Binary Heap"],
+"answer": 3,
+"explanation": "A binary heap provides O(log n) insertions and extractions for priority queues."
+},
+{
+"question": "In which domain are B-Trees most commonly used?",
+"choices": ["Database indexing", "CPU cache management", "Image processing"],
+"answer": 1,
+"explanation": "B-Trees are optimized for disk systems and widely used in database indices."
+},
+{
+"question": "What is the node visit sequence in an inorder traversal of a binary tree?",
+"choices": ["Left, Root, Right", "Root, Left, Right", "Left, Right, Root"],
+"answer": 1,
+"explanation": "Inorder traversal visits the left subtree first, then the root, then the right subtree."
+},
+{
+"question": "What sequence is produced by an inorder traversal of a Binary Search Tree?",
+"choices": ["Random order", "Sorted ascending order", "Reverse sorted order"],
+"answer": 2,
+"explanation": "Inorder traversal of a valid BST visits keys in strictly ascending order."
+},
+{
+"question": "Which representation is most space-efficient for storing a dense graph?",
+"choices": ["Adjacency Matrix", "Adjacency List", "Edge List"],
+"answer": 1,
+"explanation": "An adjacency matrix provides O(1) edge lookup without pointer overhead in dense graphs."
+},
+{
+"question": "What is the primary application of a Trie data structure?",
+"choices": ["Prefix search and autocomplete", "Sorting numbers", "Finding shortest paths"],
+"answer": 1,
+"explanation": "Tries store strings associatively, making prefix lookups and autocomplete very efficient."
+},
+{
+"question": "Which data structure supports insertion and deletion at both ends in O(1) time?",
+"choices": ["Deque", "Simple Queue", "Stack"],
+"answer": 1,
+"explanation": "A double-ended queue (deque) allows push and pop operations at both ends."
+},
+{
+"question": "What color must the root node always have in a standard Red-Black Tree?",
+"choices": ["Red", "Black", "Either Red or Black"],
+"answer": 2,
+"explanation": "By definition, the root of a Red-Black Tree must be black."
+},
+{
+"question": "What is the maximum number of nodes in a binary tree of height h (root at height 0)?",
+"choices": ["2^h", "2^(h+1) - 1", "2^h - 1"],
+"answer": 2,
+"explanation": "A binary tree of height h can contain up to 2^(h+1) - 1 nodes."
+},
+{
+"question": "Which structure is used in separate chaining to resolve hash table collisions?",
+"choices": ["Linked List", "Stack", "Queue"],
+"answer": 1,
+"explanation": "Separate chaining resolves collisions by storing colliding items in a linked list per bucket."
+},
+{
+"question": "Which data structure is used to detect cycles efficiently in Kruskal's algorithm?",
+"choices": ["Binary Heap", "Stack", "Disjoint Set Union (DSU)"],
+"answer": 3,
+"explanation": "DSU maintains sets of connected vertices to test for cycles in near-constant time."
+},
+{
+"question": "What condition must be satisfied before applying Binary Search on an array?",
+"choices": ["The array must be sorted", "The array must be unsorted", "The array size must be a power of two"],
+"answer": 1,
+"explanation": "Binary search relies on sorted ordering to eliminate half the search space each step."
+},
+{
+"question": "What is the worst-case time complexity of Merge Sort?",
+"choices": ["O(n log n)", "O(n^2)", "O(n)"],
+"answer": 1,
+"explanation": "Merge sort divides the array evenly and takes O(n log n) time in all cases."
+},
+{
+"question": "When does Quick Sort exhibit its worst-case time complexity of O(n^2)?",
+"choices": ["When the chosen pivot is an extreme value", "When the pivot is the exact median", "When the input array is randomly ordered"],
+"answer": 1,
+"explanation": "Choosing the minimum or maximum element repeatedly causes severely unbalanced partitions."
+},
+{
+"question": "What is the best-case time complexity of an optimized Bubble Sort on a sorted array?",
+"choices": ["O(n^2)", "O(n)", "O(log n)"],
+"answer": 2,
+"explanation": "A swapped flag allows the algorithm to terminate after a single O(n) scan."
+},
+{
+"question": "On which type of graph does Dijkstra's algorithm fail to produce correct shortest paths?",
+"choices": ["Graphs with negative edge weights", "Directed acyclic graphs", "Disconnected graphs"],
+"answer": 1,
+"explanation": "Dijkstra assumes distances are monotonically non-decreasing and fails with negative edges."
+},
+{
+"question": "What are the two core properties required to apply Dynamic Programming?",
+"choices": ["Overlapping subproblems and optimal substructure", "No subproblems and linear structure", "Greedy choice property only"],
+"answer": 1,
+"explanation": "Dynamic programming requires optimal substructure and overlapping subproblems."
+},
+{
+"question": "Which data structure is standard for implementing Breadth-First Search (BFS)?",
+"choices": ["Queue", "Stack", "Priority Queue"],
+"answer": 1,
+"explanation": "BFS uses a FIFO queue to visit graph nodes level by level."
+},
+{
+"question": "Which data structure or mechanism is standard for Depth-First Search (DFS)?",
+"choices": ["Queue", "Stack", "Hash Table"],
+"answer": 2,
+"explanation": "DFS explores deeply along each branch using an explicit or call stack."
+},
+{
+"question": "What is the worst-case time complexity of linear search on an array of size n?",
+"choices": ["O(1)", "O(log n)", "O(n)"],
+"answer": 3,
+"explanation": "Linear search may inspect every element in the array, requiring O(n) comparisons."
+},
+{
+"question": "Which of the following sorting algorithms is inherently stable?",
+"choices": ["Merge Sort", "Quick Sort", "Heap Sort"],
+"answer": 1,
+"explanation": "Merge sort preserves the relative order of elements with equal keys."
+},
+{
+"question": "Which algorithmic paradigm provides an optimal solution for the Fractional Knapsack problem?",
+"choices": ["Greedy algorithm", "Dynamic Programming", "Backtracking"],
+"answer": 1,
+"explanation": "Sorting items by value-to-weight ratio yields an optimal greedy solution."
+},
+{
+"question": "Which algorithmic technique is standard for solving the 0/1 Knapsack problem?",
+"choices": ["Greedy algorithm", "Dynamic Programming", "Divide and Conquer"],
+"answer": 2,
+"explanation": "Because items cannot be split, optimal subproblems are combined via dynamic programming."
+},
+{
+"question": "What primary capability does Bellman-Ford have over Dijkstra's algorithm?",
+"choices": ["It correctly handles negative edge weights", "Its time complexity is O(log n)", "It only operates on trees"],
+"answer": 1,
+"explanation": "Bellman-Ford handles negative weights and detects negative weight cycles."
+},
+{
+"question": "Which algorithm is used to find a Minimum Spanning Tree of a connected weighted graph?",
+"choices": ["Prim's algorithm", "Floyd-Warshall algorithm", "Kadane's algorithm"],
+"answer": 1,
+"explanation": "Prim's algorithm greedily expands a tree to find a minimum spanning tree."
+},
+{
+"question": "Which algorithm finds shortest paths between all pairs of vertices in a weighted graph?",
+"choices": ["Dijkstra's algorithm", "Floyd-Warshall algorithm", "Bellman-Ford algorithm"],
+"answer": 2,
+"explanation": "Floyd-Warshall solves the all-pairs shortest path problem in O(V^3) time."
+},
+{
+"question": "Which type of graph is required to produce a valid Topological Sort?",
+"choices": ["Undirected Cyclic Graph", "Directed Cyclic Graph", "Directed Acyclic Graph (DAG)"],
+"answer": 3,
+"explanation": "Topological sorting requires directed edges without any directed cycles."
+},
+{
+"question": "Which algorithm finds the maximum subarray sum in O(n) time?",
+"choices": ["Kadane's algorithm", "Dijkstra's algorithm", "KMP algorithm"],
+"answer": 1,
+"explanation": "Kadane's algorithm computes the maximum contiguous subarray sum in a single linear pass."
+},
+{
+"question": "Under what condition is the two-pointer technique most effective on an array?",
+"choices": ["When the array is sorted", "When the array contains random elements", "When elements are circular"],
+"answer": 1,
+"explanation": "Sorted order allows the two pointers to make deterministic directional decisions."
+},
+{
+"question": "What type of data compression does Huffman Coding perform?",
+"choices": ["Lossy compression", "Lossless data compression", "Linear prediction"],
+"answer": 2,
+"explanation": "Huffman coding generates variable-length prefix codes without losing any information."
+},
+{
+"question": "Which theorem provides asymptotic bounds for divide-and-conquer recurrence relations?",
+"choices": ["Bayes' Theorem", "Pythagorean Theorem", "Master Theorem"],
+"answer": 3,
+"explanation": "The Master Theorem solves recurrences of the form T(n) = aT(n/b) + f(n)."
+},
+{
+"question": "What is the theoretical lower bound for comparison-based sorting algorithms?",
+"choices": ["Omega(n log n)", "Omega(n)", "Omega(n^2)"],
+"answer": 1,
+"explanation": "Decision tree analysis proves comparison sorting requires at least Omega(n log n) operations."
+},
+{
+"question": "What is the time complexity of Counting Sort for an array of size n with elements up to k?",
+"choices": ["O(n^2)", "O(n + k)", "O(n log k)"],
+"answer": 2,
+"explanation": "Counting sort runs in O(n + k) time by tallying frequencies directly."
+},
+{
+"question": "Which approach is standard for finding the Longest Common Subsequence (LCS)?",
+"choices": ["Dynamic Programming", "Greedy Approach", "Two Pointers"],
+"answer": 1,
+"explanation": "LCS uses a 2D dynamic programming grid to evaluate matching subproblems."
+},
+{
+"question": "Which algorithmic technique is typically used to solve the N-Queens problem?",
+"choices": ["Greedy choice", "Backtracking", "Divide and conquer"],
+"answer": 2,
+"explanation": "Backtracking systematically explores placements and prunes invalid configurations."
+},
+{
+"question": "To which complexity class does the decision version of the Traveling Salesperson Problem belong?",
+"choices": ["P", "NP-Complete", "Uncomputable"],
+"answer": 2,
+"explanation": "The decision version of the Traveling Salesperson Problem is NP-Complete."
+},
+{
+"question": "Which standard function is used in C to release dynamically allocated memory?",
+"choices": ["malloc()", "free()", "delete()"],
+"answer": 2,
+"explanation": "The free() function deallocates memory previously allocated by malloc() or calloc()."
+},
+{
+"question": "Which OOP concept bundles data and methods while restricting direct external access?",
+"choices": ["Encapsulation", "Inheritance", "Polymorphism"],
+"answer": 1,
+"explanation": "Encapsulation hides internal state and exposes behavior only through public interfaces."
+},
+{
+"question": "Which Java virtual machine component automatically recovers unused heap memory?",
+"choices": ["JIT Compiler", "Class Loader", "Garbage Collector"],
+"answer": 3,
+"explanation": "The Garbage Collector identifies and reclaims unreferenced heap objects."
+},
+{
+"question": "Which mechanism enables compile-time polymorphism in C++?",
+"choices": ["Function Overloading", "Virtual Functions", "Dynamic Dispatch"],
+"answer": 1,
+"explanation": "Function and operator overloading resolve polymorphic calls during compilation."
+},
+{
+"question": "Which of the following built-in data types in Python is immutable?",
+"choices": ["List", "Tuple", "Dictionary"],
+"answer": 2,
+"explanation": "Tuples cannot be modified after creation, making them immutable."
+},
+{
+"question": "What is the OOP mechanism where a new class adopts properties of an existing class?",
+"choices": ["Inheritance", "Abstraction", "Interface"],
+"answer": 1,
+"explanation": "Inheritance allows subclasses to acquire fields and methods from superclasses."
+},
+{
+"question": "What does a pointer variable hold in C programming?",
+"choices": ["A direct value", "A string literal", "The memory address of another variable"],
+"answer": 3,
+"explanation": "A pointer stores the memory address where another value resides."
+},
+{
+"question": "Which construct allows a class to achieve multiple interface inheritance in Java?",
+"choices": ["Abstract Class", "Interface", "Static Package"],
+"answer": 2,
+"explanation": "A Java class can implement multiple interfaces while extending only one class."
+},
+{
+"question": "Which keyword creates a small anonymous inline function in Python?",
+"choices": ["lambda", "def", "inline"],
+"answer": 1,
+"explanation": "The lambda keyword defines anonymous, single-expression functions in Python."
+},
+{
+"question": "Which keyword is declared in a C++ base class to enable dynamic runtime dispatch?",
+"choices": ["static", "virtual", "inline"],
+"answer": 2,
+"explanation": "The virtual keyword instructs C++ to use a vtable for runtime method dispatch."
+},
+{
+"question": "What is the execution architecture of standard client-side JavaScript engines?",
+"choices": ["Single-threaded event loop driven", "Multi-threaded preemptive", "Statically compiled"],
+"answer": 1,
+"explanation": "JavaScript uses a single execution thread paired with an event loop for asynchronous tasks."
+},
+{
+"question": "Which programming paradigm treats computation as evaluating mathematical functions without mutable state?",
+"choices": ["Procedural Programming", "Object-Oriented Programming", "Functional Programming"],
+"answer": 3,
+"explanation": "Functional programming avoids state mutations and promotes pure mathematical functions."
+},
+{
+"question": "Where does the String Constant Pool reside in modern Java memory architectures?",
+"choices": ["Heap Memory", "Stack Memory", "CPU Registers"],
+"answer": 1,
+"explanation": "The Java String Constant Pool is allocated within the main heap space."
+},
+{
+"question": "When is a class constructor automatically invoked in object-oriented programming?",
+"choices": ["At compilation time", "When an object instance is created", "When an object is deleted"],
+"answer": 2,
+"explanation": "Constructors execute automatically when allocating and initializing a new instance."
+},
+{
+"question": "What is the default initial index for arrays in C?",
+"choices": ["0", "1", "-1"],
+"answer": 1,
+"explanation": "C arrays use zero-based indexing, where the first element is located at index 0."
+},
+{
+"question": "Which method appends an item to the end of an existing Python list?",
+"choices": ["push()", "append()", "add()"],
+"answer": 2,
+"explanation": "The append() method adds an element directly to the end of a list."
+},
+{
+"question": "What is it called when a child class provides a specific implementation of a parent method?",
+"choices": ["Method Overloading", "Method Hiding", "Method Overriding"],
+"answer": 3,
+"explanation": "Method overriding allows a derived class to supply its own logic for an inherited method."
+},
+{
+"question": "In which year was the C programming language originally developed by Dennis Ritchie?",
+"choices": ["1972", "1983", "1991"],
+"answer": 1,
+"explanation": "Dennis Ritchie created C at Bell Labs in 1972."
+},
+{
+"question": "What is the role of the `finally` block in Java exception handling?",
+"choices": ["Executes only when an exception occurs", "Always executes regardless of exceptions", "Exits the program immediately"],
+"answer": 2,
+"explanation": "A finally block executes after try-catch blocks whether an exception was raised or not."
+},
+{
+"question": "Which of the following cannot be used as a key in a standard Python dictionary?",
+"choices": ["List", "String", "Integer"],
+"answer": 1,
+"explanation": "Dictionary keys must be hashable and immutable; lists are mutable."
+},
+{
+"question": "What is a dangling pointer in systems programming?",
+"choices": ["A NULL pointer", "An uninitialized pointer", "A pointer referencing deallocated memory"],
+"answer": 3,
+"explanation": "A dangling pointer points to memory that has already been freed or deallocated."
+},
+{
+"question": "Which symbol precedes a class name when declaring a destructor in C++?",
+"choices": ["Exclamation mark (!)", "Tilde (~)", "Hash (#)"],
+"answer": 2,
+"explanation": "A destructor is declared using a tilde (~) prefix before the class name."
+},
+{
+"question": "What does a static variable belong to in a Java class?",
+"choices": ["The class itself", "A specific object instance", "The call stack frame"],
+"answer": 1,
+"explanation": "Static members belong to the class rather than to any individual object instance."
+},
+{
+"question": "What is the primary advantage of list comprehensions in Python?",
+"choices": ["Creates true multithreading", "Reduces RAM by 90 percent", "Provides concise and readable syntax"],
+"answer": 3,
+"explanation": "List comprehensions offer a clean, expressive way to construct and transform lists."
+},
+{
+"question": "Why is a base case mandatory in any recursive function?",
+"choices": ["To stop recursion and prevent stack overflow", "To eliminate compiler errors", "To save heap space"],
+"answer": 1,
+"explanation": "Without a base case, recursion continues indefinitely until the call stack overflows."
+},
+{
+"question": "What is the central core module of an operating system?",
+"choices": ["Command Shell", "Kernel", "Device Driver"],
+"answer": 2,
+"explanation": "The kernel is the core component that manages hardware and system resources."
+},
+{
+"question": "Which scheduling parameter is central to Round Robin CPU scheduling?",
+"choices": ["Fixed Time Quantum", "Job Priority", "Burst Time only"],
+"answer": 1,
+"explanation": "Round Robin assigns each ready process a fixed time slice called a quantum."
+},
+{
+"question": "How many Coffman conditions must hold simultaneously for a deadlock to occur?",
+"choices": ["2 conditions", "3 conditions", "4 conditions"],
+"answer": 3,
+"explanation": "All four conditions must hold: Mutual Exclusion, Hold & Wait, No Preemption, Circular Wait."
+},
+{
+"question": "Which mechanism is primarily used to implement Virtual Memory in modern operating systems?",
+"choices": ["Cache indexing", "Paging and Segmentation", "CPU Registers"],
+"answer": 2,
+"explanation": "Virtual memory relies on demand paging and address translation tables."
+},
+{
+"question": "What is the state called when an OS spends more time swapping pages than executing code?",
+"choices": ["Thrashing", "Paging anomaly", "Deadlock"],
+"answer": 1,
+"explanation": "Thrashing occurs when constant page faults consume nearly all processing capacity."
+},
+{
+"question": "What is the primary purpose of the Banker's Algorithm in operating systems?",
+"choices": ["Deadlock detection", "Process termination", "Deadlock avoidance"],
+"answer": 3,
+"explanation": "Banker's Algorithm tests for safe resource allocation states to avoid deadlocks."
+},
+{
+"question": "What information is stored inside a Process Control Block (PCB)?",
+"choices": ["Process state, program counter, and CPU registers", "Source code files only", "Network payloads only"],
+"answer": 1,
+"explanation": "A PCB holds the execution state, registers, memory limits, and priority of a process."
+},
+{
+"question": "What is the action called when the CPU switches from running one process to another?",
+"choices": ["Paging", "Context Switching", "Spooling"],
+"answer": 2,
+"explanation": "Context switching saves the current state of a process and restores another."
+},
+{
+"question": "Which synchronization variable manages access to shared resources using signaling?",
+"choices": ["Pointer", "Cache tag", "Semaphore"],
+"answer": 3,
+"explanation": "A semaphore is an integer variable accessed via atomic wait and signal operations."
+},
+{
+"question": "Which page replacement algorithm can experience Belady's Anomaly?",
+"choices": ["FIFO (First In First Out)", "LRU (Least Recently Used)", "Optimal Page Replacement"],
+"answer": 1,
+"explanation": "In FIFO, increasing page frames can paradoxically increase page faults."
+},
+{
+"question": "What does the LRU acronym stand for in memory management?",
+"choices": ["Last Required Unit", "Least Recently Used", "Linear Resource Utility"],
+"answer": 2,
+"explanation": "LRU stands for Least Recently Used page replacement algorithm."
+},
+{
+"question": "What is a Zombie process in Unix-like operating systems?",
+"choices": ["A terminated process whose exit status has not been read by its parent", "A process running an infinite loop", "A process with no assigned PID"],
+"answer": 1,
+"explanation": "A zombie has completed execution but remains in the process table until parent calls wait()."
+},
+{
+"question": "When does an active child process become an Orphan process?",
+"choices": ["When it crashes", "When memory is exhausted", "When its parent process terminates before it"],
+"answer": 3,
+"explanation": "An orphan process is left running after its parent terminates; it is adopted by init."
+},
+{
+"question": "Which subsystem commonly uses spooling to manage slow peripheral hardware?",
+"choices": ["RAM speed booster", "Print queue management", "GPU shaders"],
+"answer": 2,
+"explanation": "Spooling buffers print jobs on disk to prevent blocking application execution."
+},
+{
+"question": "What is the purpose of the Translation Lookaside Buffer (TLB)?",
+"choices": ["To cache virtual-to-physical address mappings", "To manage hard drive files", "To handle hardware interrupts"],
+"answer": 1,
+"explanation": "The TLB is a high-speed hardware cache that speeds up virtual address translation."
+},
+{
+"question": "What does the `fork()` system call do in Unix-like systems?",
+"choices": ["Terminates the current process", "Creates a new child process identical to the caller", "Reboots the operating system"],
+"answer": 2,
+"explanation": "The fork() call creates an almost identical child process by duplicating the caller."
+},
+{
+"question": "Which of the following CPU scheduling algorithms is strictly non-preemptive?",
+"choices": ["Round Robin", "SRTF", "FCFS (First-Come, First-Served)"],
+"answer": 3,
+"explanation": "FCFS runs each process to completion or until it voluntarily yields."
+},
+{
+"question": "What is the primary difference between a Mutex and a Binary Semaphore?",
+"choices": ["A Mutex has an ownership concept", "A Semaphore cannot be binary", "A Mutex is implemented purely in software"],
+"answer": 1,
+"explanation": "Only the thread that locks a mutex can unlock it, enforcing strict ownership."
+},
+{
+"question": "Which technique prevents starvation in priority-based CPU scheduling?",
+"choices": ["Deadlock detection", "Aging", "Thrashing"],
+"answer": 2,
+"explanation": "Aging gradually increases the priority of waiting processes over time."
+},
+{
+"question": "When does Internal Fragmentation occur in memory management?",
+"choices": ["When memory blocks are non-contiguous", "When disk space is full", "When assigned memory is larger than requested"],
+"answer": 3,
+"explanation": "Internal fragmentation is unused space within an allocated fixed-size block."
+},
+{
+"question": "Which memory management approach completely eliminates External Fragmentation?",
+"choices": ["Paging", "Static partitioning", "Increasing clock speed"],
+"answer": 1,
+"explanation": "Paging allocates physical memory in fixed-size frames, eliminating external gaps."
+},
+{
+"question": "What is the guiding design principle of a Microkernel architecture?",
+"choices": ["Include all OS services in the kernel", "Keep only minimal essential services in kernel space", "Eliminate system calls entirely"],
+"answer": 2,
+"explanation": "Microkernels move non-essential services like file systems into user space."
+},
+{
+"question": "Which three requirements must a solution to the Critical Section problem satisfy?",
+"choices": ["Mutual Exclusion, Progress, Bounded Waiting", "Speed, Memory, Concurrency", "Preemption, Locking, Security"],
+"answer": 1,
+"explanation": "A valid critical section solution must ensure mutual exclusion, progress, and bounded waiting."
+},
+{
+"question": "Which process is typically assigned PID 1 in Linux systems?",
+"choices": ["kernel daemon", "bash shell", "init or systemd"],
+"answer": 3,
+"explanation": "The first user-space process started by the Linux kernel is init (or systemd), having PID 1."
+},
+{
+"question": "What does Swapping mean in operating system memory management?",
+"choices": ["Swapping register values", "Temporarily moving an idle process from RAM to disk", "Reconfiguring keyboard layouts"],
+"answer": 2,
+"explanation": "Swapping moves an entire process between main memory and secondary storage."
+},
+{
+"question": "What does the 'A' represent in the database ACID acronym?",
+"choices": ["Atomicity", "Availability", "Authentication"],
+"answer": 1,
+"explanation": "Atomicity ensures all operations in a transaction succeed or all are rolled back."
+},
+{
+"question": "Which SQL keyword eliminates duplicate rows from a query result?",
+"choices": ["UNIQUE", "DISTINCT", "DIFFERENT"],
+"answer": 2,
+"explanation": "SELECT DISTINCT filters out duplicate tuples from the output relation."
+},
+{
+"question": "What is a mandatory property of a database Primary Key?",
+"choices": ["It cannot contain NULL values", "It allows duplicate values", "It must be an integer"],
+"answer": 1,
+"explanation": "Primary keys must uniquely identify each row and cannot be NULL."
+},
+{
+"question": "What kind of database integrity does a Foreign Key enforce?",
+"choices": ["Disk compression", "Indexing hierarchy", "Referential Integrity"],
+"answer": 3,
+"explanation": "A foreign key ensures references between child and parent tables remain valid."
+},
+{
+"question": "What is the primary requirement for a table to be in First Normal Form (1NF)?",
+"choices": ["Must contain foreign keys", "Every column value must be atomic", "Must contain transitive dependencies"],
+"answer": 2,
+"explanation": "1NF requires that all column values are atomic and attributes are not repeating groups."
+},
+{
+"question": "Which type of dependency must be eliminated to achieve Second Normal Form (2NF)?",
+"choices": ["Partial Dependency", "Transitive Dependency", "Join Dependency"],
+"answer": 1,
+"explanation": "2NF requires 1NF and no non-prime attribute depending on a proper subset of a candidate key."
+},
+{
+"question": "Which type of dependency must be removed to achieve Third Normal Form (3NF)?",
+"choices": ["Multi-valued dependency", "Atomic dependency", "Transitive Dependency"],
+"answer": 3,
+"explanation": "3NF requires 2NF and no transitive functional dependencies on non-prime attributes."
+},
+{
+"question": "Which of the following SQL statements is a Data Definition Language (DDL) command?",
+"choices": ["CREATE", "INSERT", "SELECT"],
+"answer": 1,
+"explanation": "CREATE defines or alters schema structures and is classified as DDL."
+},
+{
+"question": "Which SQL clause is used to filter aggregated group results?",
+"choices": ["WHERE", "HAVING", "GROUP BY"],
+"answer": 2,
+"explanation": "The HAVING clause filters groups created by GROUP BY, while WHERE filters individual rows."
+},
+{
+"question": "Why are indexes created on relational database tables?",
+"choices": ["To reduce storage footprint", "To restrict unauthorized logins", "To speed up query data retrieval"],
+"answer": 3,
+"explanation": "Indexes provide fast lookup paths (like B-trees) that avoid scanning entire tables."
+},
+{
+"question": "Which of the following is a document-oriented NoSQL database?",
+"choices": ["MongoDB", "PostgreSQL", "SQLite"],
+"answer": 1,
+"explanation": "MongoDB stores flexible JSON-like documents rather than fixed relational tables."
+},
+{
+"question": "Which symbol represents the Cartesian Product in relational algebra?",
+"choices": ["Pi symbol", "Cross symbol (X)", "Sigma symbol"],
+"answer": 2,
+"explanation": "The cross symbol (X) denotes the Cartesian product of two relations."
+},
+{
+"question": "What does the Isolation property in ACID guarantee?",
+"choices": ["Concurrent transactions execute without interference", "The database is entirely offline", "Only a single user can log in"],
+"answer": 1,
+"explanation": "Isolation guarantees that uncommitted changes from one transaction are invisible to others."
+},
+{
+"question": "Why is Write-Ahead Logging (WAL) used in database management systems?",
+"choices": ["To optimize query compilation", "To manage user credentials", "To ensure crash recovery and durability"],
+"answer": 3,
+"explanation": "WAL records changes to durable log storage before dirty pages are written to tables."
+},
+{
+"question": "What does the Two-Phase Locking (2PL) protocol guarantee in databases?",
+"choices": ["Deadlock freedom", "Conflict Serializability", "Zero disk usage"],
+"answer": 2,
+"explanation": "Growing and shrinking phases ensure all operations can be serialized cleanly."
+},
+{
+"question": "What is the primary operational difference between TRUNCATE and DELETE in SQL?",
+"choices": ["TRUNCATE is a faster DDL operation that deallocates data pages", "DELETE drops the table schema", "TRUNCATE requires row-by-row confirmation"],
+"answer": 1,
+"explanation": "TRUNCATE deallocates pages directly without logging individual row deletions."
+},
+{
+"question": "What is a View in a relational database?",
+"choices": ["A physical hard drive file", "A hardware cache buffer", "A virtual table defined by a stored query"],
+"answer": 3,
+"explanation": "A view does not store data itself; it is a stored query presented as a virtual table."
+},
+{
+"question": "Boyce-Codd Normal Form (BCNF) is a stricter version of which normal form?",
+"choices": ["1NF", "3NF", "2NF"],
+"answer": 2,
+"explanation": "BCNF eliminates remaining functional dependencies where the determinant is not a superkey."
+},
+{
+"question": "Which geometric shape represents an Entity in an Entity-Relationship (ER) diagram?",
+"choices": ["Rectangle", "Ellipse", "Diamond"],
+"answer": 1,
+"explanation": "In standard Chen ER notation, entities are drawn as rectangles."
+},
+{
+"question": "Which shape represents a Relationship in an ER diagram?",
+"choices": ["Circle", "Triangle", "Diamond"],
+"answer": 3,
+"explanation": "Relationships connecting entities are depicted using diamonds."
+},
+{
+"question": "Which SQL join returns only rows that have matching values in both tables?",
+"choices": ["LEFT JOIN", "INNER JOIN", "FULL OUTER JOIN"],
+"answer": 2,
+"explanation": "INNER JOIN discards non-matching rows and outputs only matching combinations."
+},
+{
+"question": "Why is intentional Denormalization sometimes applied in database design?",
+"choices": ["To optimize read query performance by reducing joins", "To increase redundant storage", "To bypass table integrity"],
+"answer": 1,
+"explanation": "Denormalization adds managed redundancy to avoid expensive join operations on frequent reads."
+},
+{
+"question": "How many clustered indexes can exist on a single database table?",
+"choices": ["Unlimited", "One per column", "Exactly one"],
+"answer": 3,
+"explanation": "Because a clustered index determines physical storage order, a table can only have one."
+},
+{
+"question": "What is the purpose of a Checkpoint in database transaction recovery?",
+"choices": ["To abort all active transactions", "To flush dirty buffer pages from memory to disk", "To disconnect inactive users"],
+"answer": 2,
+"explanation": "Checkpoints write cached changes to disk, reducing the amount of log replayed after a crash."
+},
+{
+"question": "How many properties of the CAP theorem can a distributed data store guarantee simultaneously?",
+"choices": ["At most two", "All three", "Only one"],
+"answer": 1,
+"explanation": "Under network partition (P), a system must choose between Consistency (C) and Availability (A)."
+},
+{
+"question": "How many layers are in the OSI (Open Systems Interconnection) reference model?",
+"choices": ["4 layers", "5 layers", "7 layers"],
+"answer": 3,
+"explanation": "The OSI model consists of 7 layers from Physical up to Application."
+},
+{
+"question": "Which networking protocol translates human-readable domain names into IP addresses?",
+"choices": ["DNS", "DHCP", "FTP"],
+"answer": 1,
+"explanation": "The Domain Name System (DNS) resolves hostnames to numeric IP addresses."
+},
+{
+"question": "What is the primary difference between TCP and UDP at the transport layer?",
+"choices": ["UDP is connection-oriented", "TCP is connection-oriented and reliable", "Both are unacknowledged datagram streams"],
+"answer": 2,
+"explanation": "TCP provides reliable, sequenced delivery via handshakes, whereas UDP is connectionless."
+},
+{
+"question": "Which default port is used for unencrypted HTTP web traffic?",
+"choices": ["Port 80", "Port 443", "Port 21"],
+"answer": 1,
+"explanation": "HTTP defaults to port 80, while HTTPS uses port 443."
+},
+{
+"question": "Which cryptographic protocol is used to encrypt HTTPS communications?",
+"choices": ["SSH only", "IPsec", "TLS/SSL"],
+"answer": 3,
+"explanation": "Transport Layer Security (TLS) encrypts web traffic over HTTPS."
+},
+{
+"question": "What is the total address length of an IPv4 address in bits?",
+"choices": ["16 bits", "32 bits", "64 bits"],
+"answer": 2,
+"explanation": "An IPv4 address consists of 32 bits divided into four 8-bit octets."
+},
+{
+"question": "What is the total bit length of an IPv6 address?",
+"choices": ["128 bits", "64 bits", "256 bits"],
+"answer": 1,
+"explanation": "IPv6 addresses are 128 bits long and written in hexadecimal notation."
+},
+{
+"question": "At which layer of the OSI model does an IP router primarily operate?",
+"choices": ["Data Link Layer", "Transport Layer", "Network Layer"],
+"answer": 3,
+"explanation": "Routers make forwarding decisions based on logical IP addresses at Layer 3 (Network Layer)."
+},
+{
+"question": "Which address does a standard Layer 2 switch use to forward Ethernet frames?",
+"choices": ["IP Address", "MAC Address", "Port Number"],
+"answer": 2,
+"explanation": "Layer 2 switches forward frames based on physical hardware MAC addresses."
+},
+{
+"question": "Which protocol automatically assigns IP configurations to client devices on a network?",
+"choices": ["DHCP", "DNS", "SNMP"],
+"answer": 1,
+"explanation": "Dynamic Host Configuration Protocol (DHCP) dynamically leases IP addresses to hosts."
+},
+{
+"question": "Which protocol is standard for sending outgoing email between mail servers?",
+"choices": ["POP3", "SMTP", "IMAP"],
+"answer": 2,
+"explanation": "Simple Mail Transfer Protocol (SMTP) handles mail transmission and routing."
+},
+{
+"question": "What is the packet exchange sequence during a standard TCP three-way handshake?",
+"choices": ["ACK, SYN, ACK", "SYN, ACK, SYN-ACK", "SYN, SYN-ACK, ACK"],
+"answer": 3,
+"explanation": "The client initiates with SYN, the server responds with SYN-ACK, and the client acknowledges with ACK."
+},
+{
+"question": "What is the CIDR prefix notation for the subnet mask 255.255.255.0?",
+"choices": ["/24", "/16", "/8"],
+"answer": 1,
+"explanation": "255.255.255.0 has 24 consecutive set bits, represented as /24."
+},
+{
+"question": "Which protocol does the `ping` command use to check network connectivity?",
+"choices": ["TCP", "ICMP", "UDP"],
+"answer": 2,
+"explanation": "Ping uses ICMP Echo Request and Echo Reply messages."
+},
+{
+"question": "Which protocol resolves an IPv4 address to its associated physical MAC address?",
+"choices": ["ARP", "RARP", "NAT"],
+"answer": 1,
+"explanation": "Address Resolution Protocol (ARP) finds the MAC address corresponding to a known IP."
+},
+{
+"question": "Which of the following IP addresses falls within an RFC 1918 private range?",
+"choices": ["8.8.8.8", "1.1.1.1", "192.168.1.1"],
+"answer": 3,
+"explanation": "192.168.0.0/16 is reserved for private local area networks."
+},
+{
+"question": "What is the primary function of Network Address Translation (NAT)?",
+"choices": ["DNS encryption", "Mapping private internal IP addresses to a public routable IP", "Firewall packet logging"],
+"answer": 2,
+"explanation": "NAT maps private local addresses to one or more public IP addresses."
+},
+{
+"question": "Which media access control protocol was traditionally used in half-duplex Ethernet?",
+"choices": ["CSMA/CD", "CSMA/CA", "Token Passing"],
+"answer": 1,
+"explanation": "Ethernet used Carrier Sense Multiple Access with Collision Detection (CSMA/CD)."
+},
+{
+"question": "Which protocol is used in 802.11 Wi-Fi networks to manage wireless media access?",
+"choices": ["CSMA/CD", "Token Ring", "CSMA/CA"],
+"answer": 3,
+"explanation": "Wireless networks avoid collisions using Carrier Sense Multiple Access with Collision Avoidance."
+},
+{
+"question": "What is the standard listening port for Secure Shell (SSH) remote administrative access?",
+"choices": ["Port 22", "Port 23", "Port 25"],
+"answer": 1,
+"explanation": "SSH servers listen on TCP port 22 by default."
+},
+{
+"question": "How does a network switch differ fundamentally from a network hub?",
+"choices": ["A hub encrypts incoming frames", "A switch forwards frames to specific ports, whereas a hub broadcasts to all", "A hub operates at full duplex"],
+"answer": 2,
+"explanation": "Hubs blindly broadcast frames, while switches inspect MAC addresses to forward frames selectively."
+},
+{
+"question": "What is the standard Maximum Transmission Unit (MTU) size for standard Ethernet frames?",
+"choices": ["1024 bytes", "65535 bytes", "1500 bytes"],
+"answer": 3,
+"explanation": "Standard Ethernet has an MTU payload capacity of 1500 bytes."
+},
+{
+"question": "Which mechanism does TCP use for end-to-end flow control?",
+"choices": ["Sliding Window Protocol", "Stop-and-wait", "Random Early Detection"],
+"answer": 1,
+"explanation": "TCP uses a dynamic sliding window to prevent the sender from overwhelming receiver buffers."
+},
+{
+"question": "Which phase begins the TCP congestion control algorithm?",
+"choices": ["Congestion Avoidance", "Slow Start", "Fast Retransmit"],
+"answer": 2,
+"explanation": "TCP connections begin in Slow Start, exponentially doubling the congestion window."
+},
+{
+"question": "How many ports does traditional FTP use for control and data transfer respectively?",
+"choices": ["Two ports (Port 20 and 21)", "One port (Port 22)", "Three ports"],
+"answer": 1,
+"explanation": "FTP uses port 21 for control commands and port 20 for payload data transfer."
+},
+{
+"question": "Which CPU unit performs arithmetic calculations and logical decisions?",
+"choices": ["Control Unit", "Cache Memory", "Arithmetic Logic Unit (ALU)"],
+"answer": 3,
+"explanation": "The ALU handles all binary arithmetic operations and logical comparisons."
+},
+{
+"question": "Which storage component offers the fastest access speed in the computer memory hierarchy?",
+"choices": ["CPU Registers", "Level 1 Cache", "Main RAM"],
+"answer": 1,
+"explanation": "CPU registers are built directly into the processor core and offer near-instantaneous access."
+},
+{
+"question": "What is the defining characteristic of the Von Neumann computer architecture?",
+"choices": ["Separate data and code memory buses", "Shared single memory space for data and instructions", "No system bus"],
+"answer": 2,
+"explanation": "Von Neumann systems store both instructions and data in a common address space."
+},
+{
+"question": "How does the Harvard architecture organize memory compared to Von Neumann?",
+"choices": ["Uses a single unified chip", "Eliminates cache memories", "Uses separate physical memories and buses for data and instructions"],
+"answer": 3,
+"explanation": "Harvard architecture isolates instruction pathways from data pathways."
+},
+{
+"question": "What is the primary motivation for CPU instruction pipelining?",
+"choices": ["To increase overall instruction throughput", "To reduce clock speed", "To minimize RAM bus width"],
+"answer": 1,
+"explanation": "Pipelining overlaps instruction execution stages to complete instructions each clock cycle."
+},
+{
+"question": "What does the RISC acronym stand for in computer architecture?",
+"choices": ["Rapid Instruction System Chip", "Reduced Instruction Set Computer", "Reliable Integrated Silicon Core"],
+"answer": 2,
+"explanation": "RISC stands for Reduced Instruction Set Computer, emphasizing simple, single-cycle instructions."
+},
+{
+"question": "Which memory technology is predominantly used to implement high-speed CPU cache?",
+"choices": ["SRAM (Static RAM)", "DRAM (Dynamic RAM)", "Flash Memory"],
+"answer": 1,
+"explanation": "SRAM uses flip-flops that do not require periodic refreshing, providing faster access times."
+},
+{
+"question": "Why does main DRAM (Dynamic RAM) require continuous periodic refresh cycles?",
+"choices": ["For clock synchronization", "To service software interrupts", "Because memory cell capacitors leak charge over time"],
+"answer": 3,
+"explanation": "DRAM stores bits as electrical charges on tiny capacitors that naturally dissipate."
+},
+{
+"question": "What does the CPU Program Counter (PC) register hold?",
+"choices": ["The previous arithmetic result", "The memory address of the next instruction to execute", "The base of the current stack frame"],
+"answer": 2,
+"explanation": "The Program Counter tracks the memory location of the next sequential instruction."
+},
+{
+"question": "What is the correct sequential order of the basic CPU instruction cycle?",
+"choices": ["Fetch, Decode, Execute, Writeback", "Execute, Fetch, Decode, Store", "Decode, Execute, Fetch, Interrupt"],
+"answer": 1,
+"explanation": "The CPU fetches the instruction, decodes it, executes the operation, and writes back the result."
+},
+{
+"question": "Which pairs of digital logic gates are considered Universal Gates?",
+"choices": ["AND and OR", "XOR and XNOR", "NAND and NOR"],
+"answer": 3,
+"explanation": "Any Boolean function can be constructed exclusively using either NAND or NOR gates."
+},
+{
+"question": "When does a digital XOR gate produce an output of logic 1?",
+"choices": ["When both inputs are 1", "When the two inputs have different logic values", "When both inputs are 0"],
+"answer": 2,
+"explanation": "XOR outputs high only when exactly one of its two inputs is high."
+},
+{
+"question": "What are the outputs produced by a standard digital Half Adder?",
+"choices": ["Sum and Carry", "Sum only", "Difference and Borrow"],
+"answer": 1,
+"explanation": "A half adder adds two 1-bit inputs and outputs both a Sum and a Carry bit."
+},
+{
+"question": "How many total input bits does a digital Full Adder accept?",
+"choices": ["2 bits", "4 bits", "3 bits (A, B, and Carry-in)"],
+"answer": 3,
+"explanation": "A full adder adds two operand bits plus an incoming carry-in bit from a previous stage."
+},
+{
+"question": "What classification does a digital flip-flop circuit belong to?",
+"choices": ["Combinational Circuit", "Sequential Circuit storing 1 bit of state", "Analog amplifier"],
+"answer": 2,
+"explanation": "Flip-flops are bistable sequential circuits capable of storing a single binary bit."
+},
+{
+"question": "What is the primary function of a digital Multiplexer (MUX)?",
+"choices": ["Selects one of several input lines to forward to a single output", "Expands a single input to multiple outputs", "Decodes binary signals"],
+"answer": 1,
+"explanation": "A multiplexer acts as a data selector, routing one chosen input line to its single output."
+},
+{
+"question": "What does a digital Demultiplexer (DEMUX) do?",
+"choices": ["Adds binary inputs", "Subtracts binary inputs", "Routes a single input signal to one of multiple output lines"],
+"answer": 3,
+"explanation": "A demultiplexer distributes a single input line across one selected output channel."
+},
+{
+"question": "How is the 2's complement of a binary number calculated?",
+"choices": ["Invert all bits (1's complement) and add 1", "Subtract 1 directly", "Shift bits to the left"],
+"answer": 1,
+"explanation": "Taking the 1's complement by inverting bits and adding 1 produces the 2's complement."
+},
+{
+"question": "What are the three fundamental types of CPU pipelining hazards?",
+"choices": ["Structural, Data, and Control hazards", "Voltage, Clock, and Heat hazards", "Bus, Disk, and Memory hazards"],
+"answer": 1,
+"explanation": "Pipeline hazards stem from hardware conflicts (structural), dependencies (data), or branching (control)."
+},
+{
+"question": "Why do modern processors incorporate branch prediction units?",
+"choices": ["To speed up RAM refresh rates", "To increase ALU bus width", "To avoid pipeline stalls caused by conditional branches"],
+"answer": 3,
+"explanation": "Speculating the outcome of branches prevents expensive pipeline flushes."
+},
+{
+"question": "In a direct-mapped cache, how many cache lines can a specific memory block map to?",
+"choices": ["Any arbitrary cache line", "Exactly one designated cache line", "All lines simultaneously"],
+"answer": 2,
+"explanation": "The cache index bits strictly determine the single line where a given block can reside."
+},
+{
+"question": "What is the primary advantage of a Fully Associative Cache?",
+"choices": ["Any memory block can be stored in any available cache line", "It requires no tag comparison hardware", "It eliminates the need for RAM"],
+"answer": 1,
+"explanation": "Flexible placement minimizes conflict misses by allowing blocks to occupy any line."
+},
+{
+"question": "What is the purpose of using a Karnaugh Map (K-map) in digital design?",
+"choices": ["To amplify clock signals", "To analyze high frequencies", "To simplify Boolean algebra expressions visually"],
+"answer": 3,
+"explanation": "K-maps group adjacent truth values to find minimal sum-of-products Boolean expressions."
+},
+{
+"question": "When do synchronous sequential circuits update their internal state?",
+"choices": ["Immediately whenever inputs change", "Synchronized to a clock edge transition", "Only on power cycle"],
+"answer": 2,
+"explanation": "Synchronous circuits update state flip-flops strictly on rising or falling clock edges."
+},
+{
+"question": "In a Little-Endian computer architecture, where is the Least Significant Byte (LSB) stored?",
+"choices": ["At the lowest memory address", "At the highest memory address", "In random cache registers"],
+"answer": 1,
+"explanation": "Little-Endian stores the least significant byte of a multi-byte word at the lowest address."
+},
+{
+"question": "How many secret keys are used in symmetric key cryptography?",
+"choices": ["Two different public and private keys", "Zero keys", "One shared secret key"],
+"answer": 3,
+"explanation": "Symmetric ciphers use the same secret key for both encryption and decryption."
+},
+{
+"question": "In asymmetric cryptography, which key does a sender use to encrypt a confidential message?",
+"choices": ["The sender's private key", "The recipient's public key", "The server's session key"],
+"answer": 2,
+"explanation": "Encrypting with the recipient's public key ensures only their private key can decrypt it."
+},
+{
+"question": "What is the primary property of a cryptographic hash function like SHA-256?",
+"choices": ["It is a one-way mathematical function that cannot be inverted", "It can be decrypted with a private key", "It requires a shared secret"],
+"answer": 1,
+"explanation": "Cryptographic hashes are deterministic one-way functions whose outputs cannot be reversed."
+},
+{
+"question": "What is the most effective defense against SQL Injection (SQLi) attacks?",
+"choices": ["Dynamic string concatenation", "Admin-only login portals", "Parameterized queries and prepared statements"],
+"answer": 3,
+"explanation": "Prepared statements separate SQL syntax from input data, preventing input from being executed."
+},
+{
+"question": "What does an attacker execute on a victim's browser during a Cross-Site Scripting (XSS) attack?",
+"choices": ["Kernel rootkits", "Malicious client-side JavaScript", "Database DDL scripts"],
+"answer": 2,
+"explanation": "XSS injects untrusted scripts that execute within the security context of the victim's browser."
+},
+{
+"question": "What is the primary goal of a Distributed Denial of Service (DDoS) attack?",
+"choices": ["To overwhelm target resources and deny service to legitimate users", "To decrypt stored passwords", "To silently encrypt hard drives"],
+"answer": 1,
+"explanation": "DDoS floods servers with distributed traffic to exhaust network capacity or computing power."
+},
+{
+"question": "How does a phishing attack typically compromise user accounts?",
+"choices": ["By breaking physical hardware", "By corrupting BIOS firmware", "By using deceptive communication to trick users into revealing credentials"],
+"answer": 3,
+"explanation": "Phishing deceives targets with fraudulent messages mimicking trusted entities to steal data."
+},
+{
+"question": "Which technology prevents Man-in-the-Middle (MitM) eavesdropping on the web?",
+"choices": ["Unencrypted HTTP", "End-to-end encryption with authenticated TLS", "Open Telnet access"],
+"answer": 2,
+"explanation": "Authenticated TLS establishes an encrypted tunnel that cannot be inspected or altered in transit."
+},
+{
+"question": "What is the primary role of a network firewall?",
+"choices": ["To inspect and filter network traffic based on configured security rules", "To manage desktop audio", "To defragment disks"],
+"answer": 1,
+"explanation": "Firewalls evaluate incoming and outgoing packets against security policies to block unauthorized access."
+},
+{
+"question": "Why does Two-Factor Authentication (2FA) improve account security?",
+"choices": ["It accelerates login speed", "It removes the need for passwords", "It requires an independent secondary factor even if a password leaks"],
+"answer": 3,
+"explanation": "2FA combines something you know (password) with something you possess or are (token/biometric)."
+},
+{
+"question": "Which type of malware locks user files and demands payment to restore access?",
+"choices": ["Ransomware", "Spyware", "Adware"],
+"answer": 1,
+"explanation": "Ransomware encrypts storage and demands a ransom payment for the decryption key."
+},
+{
+"question": "What security vulnerability occurs when an application writes more data to a buffer than allocated?",
+"choices": ["Cross-site scripting", "Buffer Overflow", "Clickjacking"],
+"answer": 2,
+"explanation": "Buffer overflows overwrite adjacent memory spaces, potentially enabling code execution."
+},
+{
+"question": "What is the core idea of the Principle of Least Privilege in security design?",
+"choices": ["Give all users root access", "Grant each user and process only the minimum permissions necessary", "Eliminate authentication requirements"],
+"answer": 2,
+"explanation": "Restricting entities strictly to the permissions they require limits breach blast radius."
+},
+{
+"question": "Which Git command moves modified files from the working directory to the staging area?",
+"choices": ["git commit", "git add", "git push"],
+"answer": 2,
+"explanation": "The `git add` command stages local modifications for inclusion in the next commit snapshot."
+},
+{
+"question": "What does the `git commit` command record?",
+"choices": ["A permanent snapshot of staged changes in the local repository", "Direct uploads to the remote server", "Discarded local changes"],
+"answer": 1,
+"explanation": "Committing stores the currently staged changes as a new commit in the local repository history."
+},
+{
+"question": "What is the defining characteristic of the Waterfall software development lifecycle?",
+"choices": ["Weekly exploratory prototypes", "Continuous unstructured changes", "Strictly sequential phases where each phase completes before the next begins"],
+"answer": 3,
+"explanation": "Waterfall enforces a linear sequence from requirements through design, code, and test."
+},
+{
+"question": "What is a Sprint in the Agile Scrum development framework?",
+"choices": ["A code compilation session", "A fixed-length time-boxed iteration producing a shippable increment", "An ad-hoc debugging meeting"],
+"answer": 2,
+"explanation": "A sprint is a fixed duration (commonly 1 to 4 weeks) dedicated to completing selected user stories."
+},
+{
+"question": "What does the 'CI' acronym stand for in modern DevOps pipelines?",
+"choices": ["Continuous Integration", "Constant Intelligence", "Compiled Infrastructure"],
+"answer": 1,
+"explanation": "Continuous Integration automatically merges, builds, and tests code changes regularly."
+},
+{
+"question": "What is the primary scope of Unit Testing in software development?",
+"choices": ["Testing full cloud network deployments", "Simulating global user load", "Testing individual functions or methods in isolation"],
+"answer": 3,
+"explanation": "Unit testing validates small, isolated components of code independently."
+},
+{
+"question": "What information is inaccessible to the tester during Black Box Testing?",
+"choices": ["Expected software output", "Internal source code structure and logic", "User requirements specifications"],
+"answer": 2,
+"explanation": "Black box testing examines system behavior without knowledge of internal code or design."
+},
+{
+"question": "What do engineers inspect during White Box Testing?",
+"choices": ["Internal logic execution paths, conditions, and code branches", "Market demographic surveys", "UI color schemes"],
+"answer": 1,
+"explanation": "White box testing evaluates internal program structures, statements, and control flows."
+},
+{
+"question": "Why is Regression Testing performed during software maintenance?",
+"choices": ["To format database tables", "To update visual themes", "To verify that recent code changes have not broken existing functionality"],
+"answer": 3,
+"explanation": "Regression testing ensures that fixes or additions have not introduced unintended defects."
+},
+{
+"question": "What is the central purpose of the Singleton Design Pattern?",
+"choices": ["To clone multiple instances of a class", "To ensure a class has only one instance and provide global access to it", "To disable inheritance"],
+"answer": 2,
+"explanation": "Singleton restricts instantiation of a class to a single object across the entire application."
+},
+{
+"question": "Which design pattern category does the Factory Method pattern belong to?",
+"choices": ["Creational Design Pattern", "Structural Design Pattern", "Behavioral Design Pattern"],
+"answer": 1,
+"explanation": "Factory Method handles object creation mechanisms without exposing instantiation logic directly."
+},
+{
+"question": "What happens when a publisher changes state in the Observer Design Pattern?",
+"choices": ["The database locks tables", "The thread terminates", "All registered observers are automatically notified and updated"],
+"answer": 3,
+"explanation": "Observer defines a one-to-many dependency where state changes trigger automatic updates on observers."
+}
+]
 }

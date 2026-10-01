@@ -8,3 +8,7 @@ node_modules/
 .env
 *.log
 npm-debug.log*
+
+# Local quiz scores
+bot-state.json
+bot-state.json.tmp
