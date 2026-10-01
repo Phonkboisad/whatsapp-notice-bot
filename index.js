@@ -63,6 +63,14 @@ function updateCrReply(command, reply) {
     return update;
 }
 
+function formatEchoSenderPrefix(key) {
+    const phoneJid = [key?.participantAlt, key?.participant].find(
+        jid => typeof jid === 'string' && /^\d+(?::\d+)?@s\.whatsapp\.net$/.test(jid)
+    );
+    const senderId = phoneJid?.split('@')[0].split(':')[0];
+    return senderId ? `\`\`\`@${senderId}:\`\`\`` : '```@unknown:```';
+}
+
 function formatCrHelp({ commands, images }) {
     const textCommands = Object.keys(commands)
         .map(command => '• `CR ' + command + '`')
@@ -217,6 +225,7 @@ async function startBot() {
                         ? NOTICE_GROUP_JID
                         : DISCUSSION_GROUP_JID;
                     const echoText = echoMatch[2] ?? echoMatch[3];
+                    const senderPrefix = formatEchoSenderPrefix(m.key);
                     const contextInfo = message.extendedTextMessage?.contextInfo;
                     const quotedMessage = contextInfo?.quotedMessage;
                     const quotedContent = normalizeMessageContent(quotedMessage) || quotedMessage;
@@ -232,44 +241,47 @@ async function startBot() {
                     const quotedMessageHasMedia = mediaTypes.some(type => quotedContent?.[type]);
 
                     if (messageHasMedia) {
+                        const mediaType = [
+                            'imageMessage',
+                            'videoMessage',
+                            'documentMessage'
+                        ].find(type => message[type]?.caption !== undefined);
+
+                        if (!mediaType) {
+                            await sock.sendMessage(targetJid, { text: senderPrefix });
+                        }
+
                         const forwardedMessage = await sock.sendMessage(targetJid, { forward: m });
-                        if (forwardedMessage?.key) {
-                            const mediaType = [
-                                'imageMessage',
-                                'videoMessage',
-                                'documentMessage'
-                            ].find(type => message[type]?.caption !== undefined);
+                        if (forwardedMessage?.key && mediaType) {
+                            try {
+                                const mediaBuffer = await downloadMediaMessage(m, 'buffer', {});
+                                const sourceMedia = message[mediaType];
+                                const editContent = {
+                                    [mediaType.replace('Message', '').toLowerCase()]: mediaBuffer,
+                                    caption: `${senderPrefix}${echoText ? ` ${echoText}` : ''}`,
+                                    edit: forwardedMessage.key
+                                };
 
-                            if (mediaType) {
-                                try {
-                                    const mediaBuffer = await downloadMediaMessage(m, 'buffer', {});
-                                    const sourceMedia = message[mediaType];
-                                    const editContent = {
-                                        [mediaType.replace('Message', '').toLowerCase()]: mediaBuffer,
-                                        caption: echoText ?? '',
-                                        edit: forwardedMessage.key
-                                    };
-
-                                    if (sourceMedia.mimetype) editContent.mimetype = sourceMedia.mimetype;
-                                    if (mediaType === 'documentMessage' && sourceMedia.fileName) {
-                                        editContent.fileName = sourceMedia.fileName;
-                                    }
-                                    if (mediaType === 'videoMessage' && sourceMedia.gifPlayback) {
-                                        editContent.gifPlayback = sourceMedia.gifPlayback;
-                                    }
-
-                                    await sock.sendMessage(targetJid, editContent);
-                                } catch (error) {
-                                    console.error('Could not remove the echo command from the forwarded caption:', error);
-                                    await sock.sendMessage(
-                                        senderJid,
-                                        { text: 'The attachment was forwarded, but its caption could not be cleaned.' },
-                                        { quoted: m }
-                                    );
+                                if (sourceMedia.mimetype) editContent.mimetype = sourceMedia.mimetype;
+                                if (mediaType === 'documentMessage' && sourceMedia.fileName) {
+                                    editContent.fileName = sourceMedia.fileName;
                                 }
+                                if (mediaType === 'videoMessage' && sourceMedia.gifPlayback) {
+                                    editContent.gifPlayback = sourceMedia.gifPlayback;
+                                }
+
+                                await sock.sendMessage(targetJid, editContent);
+                            } catch (error) {
+                                console.error('Could not remove the echo command from the forwarded caption:', error);
+                                await sock.sendMessage(
+                                    senderJid,
+                                    { text: 'The attachment was forwarded, but its caption could not be cleaned.' },
+                                    { quoted: m }
+                                );
                             }
                         }
                     } else if (quotedMessageHasMedia) {
+                        await sock.sendMessage(targetJid, { text: senderPrefix });
                         await sock.sendMessage(targetJid, {
                             forward: {
                                 key: {
@@ -281,7 +293,7 @@ async function startBot() {
                             }
                         });
                     } else if (echoText !== undefined) {
-                        await sock.sendMessage(targetJid, { text: echoText });
+                        await sock.sendMessage(targetJid, { text: `${senderPrefix} ${echoText}` });
                     } else {
                         await sock.sendMessage(
                             senderJid,

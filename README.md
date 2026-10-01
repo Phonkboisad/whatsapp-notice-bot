@@ -182,7 +182,15 @@ caption when supported. The bot forwards that message to the selected group.
 It then edits the forwarded caption to remove the `CR echo ...` command while
 keeping any text after the destination name.
 You can also reply to a message with an attachment using one of those commands.
-Text-only echoes keep the existing format:
+The bot prefixes each echo with the phone digits of the member who issued the
+command, formatted in monospace (for example, `@1234567890:`). For quoted
+attachments, the ID is the command sender's, not the original message author.
+Captioned image, video, and document echoes include the prefix in the cleaned
+caption. For uncaptained or quoted attachments, the bot sends the prefix as a
+separate message immediately before forwarding the attachment. If WhatsApp does
+not provide a phone-number JID, the prefix is `@unknown:`.
+
+Text-only echoes use the same prefix:
 
 ```text
 CR echo discussion hello
