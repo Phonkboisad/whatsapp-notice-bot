@@ -117,6 +117,22 @@ CR help
 `CR help` replies with the available commands, formatted with WhatsApp bold
 headings and monospace command names. Its list updates from `bot-data.json`.
 
+### Updating a text reply
+
+In the configured mod group, update an existing text command without restarting
+the bot:
+
+```text
+CR update examtime Next exam: October 8 at 9:30 AM
+```
+
+Everything after the command name becomes the new reply text. Only existing
+keys in the `commands` object can be updated; this does not change image
+commands, resources, or the default reply. The change is saved to
+`bot-data.json` and takes effect immediately. Any member of the configured mod
+group can use this command. Currently, `MOD_GROUP_JID` and `NOTICE_GROUP_JID`
+are the same group, so its participants can update replies.
+
 The three bus commands send the matching image as a quoted reply. Add these files
 to the `assets/` directory:
 

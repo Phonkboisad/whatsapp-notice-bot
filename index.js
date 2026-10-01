@@ -4,7 +4,7 @@ import makeWASocket, {
     normalizeMessageContent,
     useMultiFileAuthState 
 } from '@whiskeysockets/baileys';
-import { readFile } from 'node:fs/promises';
+import { readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { Boom } from '@hapi/boom';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
@@ -15,6 +15,7 @@ const MOD_GROUP_JID = '120363430226894816@g.us';
 const BOT_DATA_FILE = new URL('./bot-data.json', import.meta.url);
 const DEFAULT_CR_REPLY = 'Porte jao , Distap Hcche';
 let repliesEnabled = true;
+let botDataUpdateQueue = Promise.resolve();
 const resourceSelectionState = new Map();
 
 async function loadCrReplies() {
@@ -32,6 +33,36 @@ async function loadCrReplies() {
     }
 }
 
+function updateCrReply(command, reply) {
+    const update = botDataUpdateQueue.then(async () => {
+        const data = JSON.parse(await readFile(BOT_DATA_FILE, 'utf8'));
+        if (
+            !data.commands ||
+            typeof data.commands !== 'object' ||
+            Array.isArray(data.commands) ||
+            !Object.hasOwn(data.commands, command)
+        ) {
+            return false;
+        }
+
+        data.commands[command] = reply;
+        const temporaryFile = new URL('./bot-data.json.tmp', import.meta.url);
+
+        try {
+            await writeFile(temporaryFile, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+            await rename(temporaryFile, BOT_DATA_FILE);
+        } catch (error) {
+            await unlink(temporaryFile).catch(() => {});
+            throw error;
+        }
+
+        return true;
+    });
+
+    botDataUpdateQueue = update.catch(() => {});
+    return update;
+}
+
 function formatCrHelp({ commands, images }) {
     const textCommands = Object.keys(commands)
         .map(command => '• `CR ' + command + '`')
@@ -47,6 +78,9 @@ function formatCrHelp({ commands, images }) {
         '• `CR` (default reply)',
         '• `CR rsrc`',
         textCommands,
+        '',
+        '*Mod group*',
+        '• `CR update <command> <new text>`',
         '',
         '*Schedule images*',
         imageCommands
@@ -129,6 +163,41 @@ async function startBot() {
             const isAllowedGroup = senderJid === NOTICE_GROUP_JID || senderJid === DISCUSSION_GROUP_JID;
 
             if (isModGroup) {
+                if (/^\s*CR\s+update(?:\s|$)/i.test(text)) {
+                    const updateMatch = text.match(
+                        /^\s*CR\s+update\s+([a-z]+(?:-[a-z]+)*)\s+([\s\S]*\S)\s*$/i
+                    );
+
+                    if (!updateMatch) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Usage: CR update <command> <new text>' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    const command = updateMatch[1].toLowerCase();
+                    try {
+                        const updated = await updateCrReply(command, updateMatch[2].trim());
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: updated
+                                ? `Updated CR ${command}. The new reply is active immediately.`
+                                : `No existing text command named "${command}".` },
+                            { quoted: m }
+                        );
+                    } catch (error) {
+                        console.error(`Could not update CR ${command}:`, error);
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Could not update the command. Check bot-data.json and try again.' },
+                            { quoted: m }
+                        );
+                    }
+                    continue;
+                }
+
                 const controlMatch = text.match(/^\s*CR\s+(start|stop)\s*$/i);
                 if (controlMatch) {
                     repliesEnabled = controlMatch[1].toLowerCase() === 'start';
