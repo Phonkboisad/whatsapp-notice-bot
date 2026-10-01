@@ -63,12 +63,18 @@ function updateCrReply(command, reply) {
     return update;
 }
 
-function formatEchoSenderPrefix(key) {
+function getEchoSenderMention(key) {
     const phoneJid = [key?.participantAlt, key?.participant].find(
         jid => typeof jid === 'string' && /^\d+(?::\d+)?@s\.whatsapp\.net$/.test(jid)
     );
-    const senderId = phoneJid?.split('@')[0].split(':')[0];
-    return senderId ? `\`\`\`@${senderId}:\`\`\`` : '```@unknown:```';
+    if (!phoneJid) return { text: '@unknown:', mentions: [] };
+
+    const [number] = phoneJid.split('@');
+    const senderId = number.split(':')[0];
+    return {
+        text: `@${senderId}:`,
+        mentions: [`${senderId}@s.whatsapp.net`]
+    };
 }
 
 function formatCrHelp({ commands, images }) {
@@ -225,7 +231,7 @@ async function startBot() {
                         ? NOTICE_GROUP_JID
                         : DISCUSSION_GROUP_JID;
                     const echoText = echoMatch[2] ?? echoMatch[3];
-                    const senderPrefix = formatEchoSenderPrefix(m.key);
+                    const senderMention = getEchoSenderMention(m.key);
                     const contextInfo = message.extendedTextMessage?.contextInfo;
                     const quotedMessage = contextInfo?.quotedMessage;
                     const quotedContent = normalizeMessageContent(quotedMessage) || quotedMessage;
@@ -248,7 +254,10 @@ async function startBot() {
                         ].find(type => message[type]?.caption !== undefined);
 
                         if (!mediaType) {
-                            await sock.sendMessage(targetJid, { text: senderPrefix });
+                            await sock.sendMessage(targetJid, {
+                                text: senderMention.text,
+                                mentions: senderMention.mentions
+                            });
                         }
 
                         const forwardedMessage = await sock.sendMessage(targetJid, { forward: m });
@@ -258,7 +267,8 @@ async function startBot() {
                                 const sourceMedia = message[mediaType];
                                 const editContent = {
                                     [mediaType.replace('Message', '').toLowerCase()]: mediaBuffer,
-                                    caption: `${senderPrefix}${echoText ? ` ${echoText}` : ''}`,
+                                    caption: `${senderMention.text}${echoText ? ` ${echoText}` : ''}`,
+                                    mentions: senderMention.mentions,
                                     edit: forwardedMessage.key
                                 };
 
@@ -281,7 +291,10 @@ async function startBot() {
                             }
                         }
                     } else if (quotedMessageHasMedia) {
-                        await sock.sendMessage(targetJid, { text: senderPrefix });
+                        await sock.sendMessage(targetJid, {
+                            text: senderMention.text,
+                            mentions: senderMention.mentions
+                        });
                         await sock.sendMessage(targetJid, {
                             forward: {
                                 key: {
@@ -293,7 +306,10 @@ async function startBot() {
                             }
                         });
                     } else if (echoText !== undefined) {
-                        await sock.sendMessage(targetJid, { text: `${senderPrefix} ${echoText}` });
+                        await sock.sendMessage(targetJid, {
+                            text: `${senderMention.text} ${echoText}`,
+                            mentions: senderMention.mentions
+                        });
                     } else {
                         await sock.sendMessage(
                             senderJid,
