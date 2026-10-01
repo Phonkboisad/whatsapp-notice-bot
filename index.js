@@ -14,20 +14,24 @@ const DISCUSSION_GROUP_JID = '120363406812832614@g.us';
 const MOD_GROUP_JID = '120363430226894816@g.us';
 const BOT_DATA_FILE = new URL('./bot-data.json', import.meta.url);
 const BOT_STATE_FILE = new URL('./bot-state.json', import.meta.url);
-const DEFAULT_CR_REPLY = 'Porte jao , Distap Hcche';
+const DEFAULT_CR_REPLY = 'Keep studying and stay focused.';
 const QUIZ_DURATION_MS = 30_000;
 const QUIZ_COOLDOWN_MS = 60_000;
 let repliesEnabled = true;
 let botDataUpdateQueue = Promise.resolve();
 let botStateUpdateQueue = Promise.resolve();
 let botStateLoadPromise;
-let botState = { quizScores: {}, quizQuestionHistory: [] };
+let botState = { quizScores: {}, quizQuestionHistory: [], modGroupJids: [MOD_GROUP_JID] };
 const resourceSelectionState = new Map();
 const activeQuizRounds = new Map();
 const quizCooldowns = new Map();
 
 function isRecord(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isGroupJid(value) {
+    return typeof value === 'string' && /^\d+(?:-\d+)?@g\.us$/.test(value);
 }
 
 function isValidQuizQuestion(question) {
@@ -64,6 +68,9 @@ function ensureBotStateLoaded() {
                 const data = JSON.parse(await readFile(BOT_STATE_FILE, 'utf8'));
                 const scores = isRecord(data) && isRecord(data.quizScores) ? data.quizScores : {};
                 const quizScores = {};
+                const configuredModGroups = Array.isArray(data?.modGroupJids)
+                    ? data.modGroupJids.filter(isGroupJid)
+                    : [];
 
                 for (const [groupJid, groupScores] of Object.entries(scores)) {
                     if (!isRecord(groupScores)) continue;
@@ -80,13 +87,18 @@ function ensureBotStateLoaded() {
                     quizScores,
                     quizQuestionHistory: Array.isArray(data?.quizQuestionHistory)
                         ? data.quizQuestionHistory.filter(question => typeof question === 'string')
-                        : []
+                        : [],
+                    modGroupJids: [...new Set([MOD_GROUP_JID, ...configuredModGroups])]
                 };
             } catch (error) {
                 if (error.code !== 'ENOENT') {
                     console.error('Could not load bot-state.json; starting with empty quiz scores:', error);
                 }
-                botState = { quizScores: {}, quizQuestionHistory: [] };
+                botState = {
+                    quizScores: {},
+                    quizQuestionHistory: [],
+                    modGroupJids: [MOD_GROUP_JID]
+                };
             }
         })();
     }
@@ -127,11 +139,11 @@ function getQuizParticipantId(key) {
 
 function formatQuizQuestion(question) {
     return [
-        '*Banglish Quiz*',
+        '*English Quiz*',
         question.question,
         ...question.choices.map((choice, index) => `${index + 1}. ${choice}`),
         '',
-        '30 sec-er moddhe 1, 2, ba 3 pathao. Ekbar-i answer dite parba.'
+        'Reply with 1, 2, or 3 within 30 seconds. You can answer once.'
     ].join('\n');
 }
 
@@ -141,7 +153,7 @@ function formatQuizScoreboard(scores) {
         .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name))
         .slice(0, 5);
 
-    if (!leaders.length) return 'Ekhono keu point payni. `CR quiz` diye khela shuru koro.';
+    if (!leaders.length) return 'No points yet. Start a quiz with `CR quiz`.';
 
     return [
         '*Quiz Leaderboard*',
@@ -175,45 +187,45 @@ async function finishQuizRound(sock, groupJid, round) {
         .filter(answer => answer.correct)
         .map(answer => answer.name);
     const result = correctPlayers.length
-        ? `Thik answer diyeche: ${correctPlayers.join(', ')}`
-        : 'Ei round-e keu thik answer dite pareni.';
+        ? `Correct answers submitted by: ${correctPlayers.join(', ')}`
+        : 'No one answered correctly this round.';
 
     await sock.sendMessage(groupJid, {
         text: [
-            `Time shesh! Correct answer: ${round.question.answer}. ${round.question.choices[round.question.answer - 1]}`,
+            `Time is up! Correct answer: ${round.question.answer}. ${round.question.choices[round.question.answer - 1]}`,
             round.question.explanation,
             result
         ].join('\n')
     });
 }
 
-async function handleQuizAnswer(sock, message, round, choice) {
+async function handleQuizAnswer(sock, message, groupJid, round, choice) {
     const participantId = getQuizParticipantId(message.key);
     if (!participantId) {
-        await sock.sendMessage(DISCUSSION_GROUP_JID, {
-            text: 'Tomake identify korte parlam na, tai answer count korte parini.',
+        await sock.sendMessage(groupJid, {
+            text: "I couldn't identify you, so your answer wasn't counted.",
             quoted: message
         });
         return;
     }
 
     if (round.answers.has(participantId)) {
-        await sock.sendMessage(DISCUSSION_GROUP_JID, {
-            text: 'Ei round-e ekbar-i answer deya jabe.',
+        await sock.sendMessage(groupJid, {
+            text: 'You can answer only once per round.',
             quoted: message
         });
         return;
     }
 
     const isCorrect = Number(choice) === round.question.answer;
-    const previousScore = botState.quizScores[DISCUSSION_GROUP_JID]?.[participantId];
+    const previousScore = botState.quizScores[groupJid]?.[participantId];
     const name = (message.pushName || previousScore?.name || 'Classmate').replace(/\s+/g, ' ').trim().slice(0, 40);
     round.answers.set(participantId, { name, correct: isCorrect });
 
     if (isCorrect) {
-        const groupScores = botState.quizScores[DISCUSSION_GROUP_JID] || {};
+        const groupScores = botState.quizScores[groupJid] || {};
         groupScores[participantId] = { name, score: (previousScore?.score || 0) + 1 };
-        botState.quizScores[DISCUSSION_GROUP_JID] = groupScores;
+        botState.quizScores[groupJid] = groupScores;
 
         try {
             await persistBotState();
@@ -222,8 +234,10 @@ async function handleQuizAnswer(sock, message, round, choice) {
         }
     }
 
-    await sock.sendMessage(DISCUSSION_GROUP_JID, {
-        text: isCorrect ? 'Thik! +1 point paicho.' : 'Eta thik hoyni. Answer ta round sheshe bolbo.',
+    await sock.sendMessage(groupJid, {
+        text: isCorrect
+            ? 'Correct! You earned 1 point.'
+            : 'Not quite. The correct answer will be revealed when the round ends.',
         quoted: message
     });
 }
@@ -292,10 +306,13 @@ function formatCrHelp({ commands, images }) {
         '• `CR rsrc`',
         '',
         '*Games*',
-        '• `CR quiz` (Discussion group)',
-        '• `CR score` (Discussion group)',
+        '• `CR quiz` (Discussion and mod groups)',
+        '• `CR score` (Discussion and mod groups)',
         '',
         '*Mod group only*',
+        '• `CR mod add <group JID>`',
+        '• `CR mod list`',
+        '• `CR mod remove <group JID>`',
         '• `CR start` (enable Discussion group replies)',
         '• `CR stop` (disable Discussion group replies)',
         '• `CR update <command> <new text>`',
@@ -380,10 +397,95 @@ async function startBot() {
                 message.documentMessage?.caption ||
                 '';
 
-            const isModGroup = senderJid === MOD_GROUP_JID;
+            const isModGroup = botState.modGroupJids.includes(senderJid);
             const isAllowedGroup = senderJid === NOTICE_GROUP_JID || senderJid === DISCUSSION_GROUP_JID;
 
             if (isModGroup) {
+                if (/^\s*CR\s+mod(?:\s|$)/i.test(text)) {
+                    const modCommand = text.match(
+                        /^\s*CR\s+mod\s+(add|list|remove)(?:\s+(\S+))?\s*$/i
+                    );
+
+                    if (!modCommand || (modCommand[1].toLowerCase() !== 'list' && !modCommand[2])) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Usage: CR mod add <group JID>, CR mod list, or CR mod remove <group JID>.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    const action = modCommand[1].toLowerCase();
+                    const groupJid = modCommand[2];
+                    if (action === 'list') {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: `Trusted mod groups:\n${botState.modGroupJids.map(jid => `• ${jid}`).join('\n')}` },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    if (!isGroupJid(groupJid)) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'That is not a valid WhatsApp group JID. It should end in @g.us.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    if (action === 'remove' && groupJid === MOD_GROUP_JID) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'The original mod group cannot be removed.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    if (action === 'add' && botState.modGroupJids.includes(groupJid)) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'That group is already a mod group.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    if (action === 'remove' && !botState.modGroupJids.includes(groupJid)) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'That group is not in the mod group list.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    const previousModGroupJids = botState.modGroupJids;
+                    botState.modGroupJids = action === 'add'
+                        ? [...previousModGroupJids, groupJid]
+                        : previousModGroupJids.filter(jid => jid !== groupJid);
+
+                    try {
+                        await persistBotState();
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: action === 'add' ? `Added ${groupJid} as a mod group.` : `Removed ${groupJid} from mod groups.` },
+                            { quoted: m }
+                        );
+                    } catch (error) {
+                        botState.modGroupJids = previousModGroupJids;
+                        console.error('Could not save mod group settings:', error);
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Could not save the mod group settings. Try again.' },
+                            { quoted: m }
+                        );
+                    }
+                    continue;
+                }
+
                 if (/^\s*CR\s+update(?:\s|$)/i.test(text)) {
                     const updateMatch = text.match(
                         /^\s*CR\s+update\s+([a-z]+(?:-[a-z]+)*)\s+([\s\S]*\S)\s*$/i
@@ -538,11 +640,9 @@ async function startBot() {
             if (!isModGroup && !isAllowedGroup) continue;
             if (!isModGroup && !repliesEnabled) continue;
 
-            const activeQuiz = senderJid === DISCUSSION_GROUP_JID
-                ? activeQuizRounds.get(senderJid)
-                : undefined;
+            const activeQuiz = activeQuizRounds.get(senderJid);
             if (activeQuiz && /^[1-3]$/.test(text.trim())) {
-                await handleQuizAnswer(sock, m, activeQuiz, text.trim());
+                await handleQuizAnswer(sock, m, senderJid, activeQuiz, text.trim());
                 continue;
             }
 
@@ -585,10 +685,10 @@ async function startBot() {
                 }
 
                 if (chainedCommand === 'quiz') {
-                    if (senderJid !== DISCUSSION_GROUP_JID) {
+                    if (senderJid !== DISCUSSION_GROUP_JID && !isModGroup) {
                         await sock.sendMessage(
                             senderJid,
-                            { text: 'Quiz ta shudhu Discussion group-e khela jabe.' },
+                            { text: 'The quiz is available only in the Discussion group and configured mod groups.' },
                             { quoted: m }
                         );
                         continue;
@@ -597,7 +697,7 @@ async function startBot() {
                     if (activeQuizRounds.has(senderJid)) {
                         await sock.sendMessage(
                             senderJid,
-                            { text: 'Ekta quiz already cholche! 1, 2, ba 3 diye answer dao.' },
+                            { text: 'A quiz is already in progress. Reply with 1, 2, or 3.' },
                             { quoted: m }
                         );
                         continue;
@@ -608,7 +708,7 @@ async function startBot() {
                         const secondsRemaining = Math.ceil((cooldownUntil - Date.now()) / 1000);
                         await sock.sendMessage(
                             senderJid,
-                            { text: `Next quiz-er jonno aro ${secondsRemaining} sec wait koro.` },
+                            { text: `Please wait ${secondsRemaining} more seconds before starting another quiz.` },
                             { quoted: m }
                         );
                         continue;
@@ -617,7 +717,7 @@ async function startBot() {
                     if (!crReplies.quizQuestions.length) {
                         await sock.sendMessage(
                             senderJid,
-                            { text: 'Ekhon kono valid quiz question nei. bot-data.json check koro.' },
+                            { text: 'There are no valid quiz questions. Check bot-data.json.' },
                             { quoted: m }
                         );
                         continue;
@@ -632,7 +732,7 @@ async function startBot() {
                         console.error('Could not save quiz question history:', error);
                         await sock.sendMessage(
                             senderJid,
-                            { text: 'Quiz ta ekhon start kora jacche na. Abar try koro.' },
+                            { text: 'The quiz could not start. Please try again.' },
                             { quoted: m }
                         );
                         continue;
@@ -652,10 +752,10 @@ async function startBot() {
                 }
 
                 if (chainedCommand === 'score') {
-                    const scores = botState.quizScores[DISCUSSION_GROUP_JID] || {};
-                    const response = senderJid === DISCUSSION_GROUP_JID
+                    const scores = botState.quizScores[senderJid] || {};
+                    const response = senderJid === DISCUSSION_GROUP_JID || isModGroup
                         ? formatQuizScoreboard(scores)
-                        : 'Quiz score shudhu Discussion group-e dekha jabe.';
+                        : 'Quiz scores are available only in the Discussion group and configured mod groups.';
                     await sock.sendMessage(senderJid, { text: response }, { quoted: m });
                     continue;
                 }

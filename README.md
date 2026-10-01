@@ -94,7 +94,7 @@ CR
 The bot replies:
 
 ```text
-Porte jao , Distap Hcche
+Keep studying and stay focused.
 ```
 
 ### Chained commands
@@ -117,20 +117,35 @@ CR help
 `CR help` replies with the available commands, formatted with WhatsApp bold
 headings and monospace command names. Its list updates from `bot-data.json`.
 
-### Banglish quiz
+### Quiz
 
-In the Discussion group, send `CR quiz` to start a random general-knowledge
-question written in Banglish. Reply with `1`, `2`, or `3` within 30 seconds;
+In the Discussion group or any configured mod group, send `CR quiz` to start a random general-knowledge
+question written in English. Reply with `1`, `2`, or `3` within 30 seconds;
 each person gets one attempt, and a correct answer earns one point. The bot
 reveals the answer and a short explanation when time is up. A new round can
 start after a 60-second cooldown. Questions are randomized without repeats until
 the question bank is exhausted, then a new cycle begins. The used-question
 history is saved locally, so restarting the bot does not restart the cycle.
 
-Use `CR score` in Discussion to see the top five players. Scores are saved
+Use `CR score` in the same group to see its top five players. Scores are saved
 locally in `bot-state.json` and survive bot restarts; this file is ignored by
 Git. Edit the `quizQuestions` list in `bot-data.json` to change or add questions.
-Quiz commands are only available in the Discussion group.
+Each group has a separate quiz round and leaderboard.
+
+### Managing mod groups
+
+Only a currently configured mod group can add or remove mod groups. From an
+existing mod group, send the target group's JID:
+
+```text
+CR mod add 120363012345678901@g.us
+CR mod list
+CR mod remove 120363012345678901@g.us
+```
+
+The bot prints participating group JIDs when it connects. The original mod
+group cannot be removed. Added groups are stored locally in `bot-state.json`;
+members of those groups can run mod commands and use `CR quiz` for testing.
 
 ### Updating a text reply
 
@@ -145,8 +160,7 @@ Everything after the command name becomes the new reply text. Only existing
 keys in the `commands` object can be updated; this does not change image
 commands, resources, or the default reply. The change is saved to
 `bot-data.json` and takes effect immediately. Any member of the configured mod
-group can use this command. Currently, `MOD_GROUP_JID` and `NOTICE_GROUP_JID`
-are the same group, so its participants can update replies.
+group can use this command.
 
 The three bus commands send the matching image as a quoted reply. Add these files
 to the `assets/` directory:
@@ -165,7 +179,7 @@ Edit the values in `bot-data.json` each day:
 
 ```json
 {
-	"default": "Porte jao , Distap Hcche",
+	"default": "Keep studying and stay focused.",
 	"commands": {
 		"classtime": "09:00 AM - Room 402",
 		"examtime": "10:00 AM - Mathematics",

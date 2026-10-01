@@ -1,7 +1,7 @@
 {
 "default": "use cr help for available commands",
 "commands": {
-"classtime": "No Upcoming Classes till miD! jao porte bosho 👉👈",
+"classtime": "No upcoming classes right now. Keep studying!",
 "examtime": "NEXT EXAM SCHEDULE -\n Date: 01/10/2026 \n Subject: GEED-2302 \n Time Slot: 9:30Am- 11:00AM",
 "special": "Special announcements will be added soon.",
 "assignment": "NO Pending Assignment",
@@ -20,23 +20,23 @@
 },
 {
 "subject": "DS",
-"link": "pore dibo bai"
+"link": "Coming soon."
 },
 {
 "subject": "MATH3",
-"link": "pore dibo bai"
+"link": "Coming soon."
 },
 {
 "subject": "Chemistry",
-"link": "pore dimu bai"
+"link": "Coming soon."
 },
 {
 "subject": "DLD",
-"link": "pore dimu bai"
+"link": "Coming soon."
 },
 {
 "subject": "SD",
-"link": "pore dimu bai"
+"link": "Coming soon."
 }
 ],
 "quizQuestions": [
