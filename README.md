@@ -114,8 +114,9 @@ CR bus-friday
 CR help
 ```
 
-`CR help` replies with the available commands, formatted with WhatsApp bold
-headings and monospace command names. Its list updates from `bot-data.json`.
+`CR help` shows a Discussion command guide in the Discussion group and a full
+mod/admin manual in configured mod groups. Admins get the full manual in other
+groups too. Command and image entries update from `bot-data.json`.
 
 ### Quiz
 
@@ -134,8 +135,8 @@ Each group has a separate quiz round and leaderboard.
 
 ### Managing mod groups
 
-Only a currently configured mod group can add or remove mod groups. From an
-existing mod group, send the target group's JID:
+Only bot admins can add or remove mod groups. From a configured mod group or as
+a bot admin, use the target group's JID:
 
 ```text
 CR mod add 120363012345678901@g.us
@@ -144,27 +145,31 @@ CR mod remove 120363012345678901@g.us
 ```
 
 The bot prints participating group JIDs when it connects. The original mod
-group cannot be removed. Added groups are stored locally in `bot-state.json`;
-members of those groups can run mod commands and use `CR quiz` for testing.
+group cannot be removed. Added groups are stored locally in `bot-state.json`.
+Mod-group members can use regular mod tools; group changes, user blocks, shell
+commands, and admin-list changes are restricted to bot admins.
 
 ### Personal bot admin
 
-In the Notice, Discussion, or a configured mod group, send `CR myid` to see
-your WhatsApp JID. Add that JID to the `BOT_ADMIN_USER_JIDS` environment
-variable on the VPS, then restart the bot:
+In any group or direct chat where the bot receives messages, send `CR myid` to
+see your WhatsApp JID. To bootstrap the admin list when no admin list is saved
+yet, set `BOT_ADMIN_USER_JIDS` in the VPS process environment and restart the bot:
 
 ```text
 BOT_ADMIN_USER_JIDS=15551234567@s.whatsapp.net
 ```
 
 Set this variable in the PM2 ecosystem configuration or systemd service; the
-bot does not load `.env` files. Multiple admins can be comma-separated. An
-allowlisted admin can use all CR commands in any group where the bot is present,
-including mod-only commands, and is exempt from the CR block list. This includes
-`CR run`, which executes with the bot process's server permissions.
+bot does not load `.env` files. Multiple admins can be comma-separated. The
+admin list is saved in `bot-state.json` after changes. Once bootstrapped, admins
+can manage it with `CR admin add <phone number, JID, or @mention>`,
+`CR admin remove <phone number, JID, or @mention>`, and `CR admin list`. The last
+admin cannot be removed. Admins can use all CR commands in any group where the
+bot is present and are exempt from the CR block list. `CR run` executes with the
+bot process's server permissions.
 
-From a configured mod group, an unblocked member can block or restore a user's
-access to CR commands in the Discussion and configured mod groups:
+Bot admins can block or restore a user's access to CR commands in the Discussion
+and configured mod groups:
 
 ```text
 CR block @mention
@@ -179,8 +184,7 @@ blocked from CR commands in the Notice group.
 
 ### Running a shell command
 
-Members of configured mod groups can run a shell command on the server hosting
-the bot:
+Only bot admins can run a shell command on the server hosting the bot:
 
 ```text
 CR run pwd

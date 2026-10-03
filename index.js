@@ -34,7 +34,8 @@ let botState = {
     quizScores: {},
     quizQuestionHistory: [],
     modGroupJids: [MOD_GROUP_JID],
-    blockedCrUserJids: []
+    blockedCrUserJids: [],
+    botAdminUserJids: []
 };
 const resourceSelectionState = new Map();
 const activeQuizRounds = new Map();
@@ -58,12 +59,14 @@ function normalizeBlockedUserJid(value) {
     return undefined;
 }
 
-const BOT_ADMIN_USER_JIDS = new Set(
-    (process.env.BOT_ADMIN_USER_JIDS || '')
-        .split(',')
-        .map(normalizeBlockedUserJid)
-        .filter(Boolean)
-);
+const INITIAL_BOT_ADMIN_USER_JIDS = [
+    ...new Set(
+        (process.env.BOT_ADMIN_USER_JIDS || '90314823958687@lid')
+            .split(',')
+            .map(normalizeBlockedUserJid)
+            .filter(Boolean)
+    )
+];
 
 function isValidQuizQuestion(question) {
     return isRecord(question) &&
@@ -156,6 +159,9 @@ function ensureBotStateLoaded() {
                 const blockedCrUserJids = Array.isArray(data?.blockedCrUserJids)
                     ? [...new Set(data.blockedCrUserJids.map(normalizeBlockedUserJid).filter(Boolean))]
                     : [];
+                const botAdminUserJids = Array.isArray(data?.botAdminUserJids)
+                    ? [...new Set(data.botAdminUserJids.map(normalizeBlockedUserJid).filter(Boolean))]
+                    : [...INITIAL_BOT_ADMIN_USER_JIDS];
 
                 for (const [groupJid, groupScores] of Object.entries(scores)) {
                     if (!isRecord(groupScores)) continue;
@@ -174,7 +180,8 @@ function ensureBotStateLoaded() {
                         ? data.quizQuestionHistory.filter(question => typeof question === 'string')
                         : [],
                     modGroupJids: [...new Set([MOD_GROUP_JID, ...configuredModGroups])],
-                    blockedCrUserJids
+                    blockedCrUserJids,
+                    botAdminUserJids
                 };
             } catch (error) {
                 if (error.code !== 'ENOENT') {
@@ -184,7 +191,8 @@ function ensureBotStateLoaded() {
                     quizScores: {},
                     quizQuestionHistory: [],
                     modGroupJids: [MOD_GROUP_JID],
-                    blockedCrUserJids: []
+                    blockedCrUserJids: [],
+                    botAdminUserJids: [...INITIAL_BOT_ADMIN_USER_JIDS]
                 };
             }
         })();
@@ -414,7 +422,7 @@ function getEchoSenderMention(key) {
     };
 }
 
-function formatCrHelp({ commands, images }) {
+function formatCrHelp({ commands, images }, showModManual) {
     const textCommands = Object.keys(commands)
         .map(command => '• `CR ' + command + '`')
         .join('\n');
@@ -422,8 +430,30 @@ function formatCrHelp({ commands, images }) {
         .map(command => '• `CR ' + command + '`')
         .join('\n');
 
+    if (!showModManual) {
+        return [
+            '*Discussion group command manual*',
+            '',
+            '*General*',
+            '• `CR` (default reply)',
+            '• `CR help`',
+            '• `CR myid` (show your WhatsApp JID)',
+            textCommands,
+            '',
+            '*Resources*',
+            '• `CR rsrc`',
+            '',
+            '*Games*',
+            '• `CR quiz`',
+            '• `CR score`',
+            '',
+            '*Schedule images*',
+            imageCommands
+        ].filter(Boolean).join('\n');
+    }
+
     return [
-        '*Available commands*',
+        '*Mod group full command manual*',
         '',
         '*General*',
         '• `CR` (default reply)',
@@ -438,18 +468,23 @@ function formatCrHelp({ commands, images }) {
         '• `CR quiz` (Discussion and mod groups)',
         '• `CR score` (Discussion and mod groups)',
         '',
-        '*Mod group only*',
-        '• `CR mod add <group JID>`',
+        '*Mod group members*',
         '• `CR mod list`',
-        '• `CR mod remove <group JID>`',
         '• `CR start` (enable Discussion group replies)',
         '• `CR stop` (disable Discussion group replies)',
         '• `CR update <command> <new text>`',
+        '• `CR echo notice [text]` (or echo a caption/attachment)',
+        '• `CR echo discussion [text]` (or echo a caption/attachment)',
+        '',
+        '*Bot admins only*',
+        '• `CR admin add <phone number, JID, or @mention>`',
+        '• `CR admin remove <phone number, JID, or @mention>`',
+        '• `CR admin list`',
+        '• `CR mod add <group JID>`',
+        '• `CR mod remove <group JID>`',
         '• `CR block <phone number, JID, or @mention>`',
         '• `CR unblock <phone number, JID, or @mention>`',
         '• `CR run <shell command>`',
-        '• `CR echo notice [text]` (or echo a caption/attachment)',
-        '• `CR echo discussion [text]` (or echo a caption/attachment)',
         '',
         '*Schedule images*',
         imageCommands
@@ -532,9 +567,18 @@ async function startBot() {
             const isModGroup = botState.modGroupJids.includes(senderJid);
             const isAllowedGroup = senderJid === NOTICE_GROUP_JID || senderJid === DISCUSSION_GROUP_JID;
             const senderUserJid = getMessageSenderUserJid(m.key, senderJid);
-            const isBotAdmin = senderUserJid && BOT_ADMIN_USER_JIDS.has(senderUserJid);
+            const isBotAdmin = senderUserJid && botState.botAdminUserJids.includes(senderUserJid);
             const canManageBot = isModGroup || isBotAdmin;
             const isBlockedFromCr = !isBotAdmin && senderUserJid && botState.blockedCrUserJids.includes(senderUserJid);
+
+            if (/^\s*CR\s+myid\s*$/i.test(text)) {
+                await sock.sendMessage(
+                    senderJid,
+                    { text: senderUserJid ? `Your WhatsApp JID: ${senderUserJid}` : 'Could not determine your WhatsApp JID.' },
+                    { quoted: m }
+                );
+                continue;
+            }
 
             if (
                 isBlockedFromCr &&
@@ -549,17 +593,109 @@ async function startBot() {
                 continue;
             }
 
-            if (/^\s*CR\s+myid\s*$/i.test(text) && (isAllowedGroup || isModGroup || isBotAdmin)) {
+            if (/^\s*CR\s+admin(?:\s|$)/i.test(text) && !isBotAdmin) {
                 await sock.sendMessage(
                     senderJid,
-                    { text: senderUserJid ? `Your WhatsApp JID: ${senderUserJid}` : 'Could not determine your WhatsApp JID.' },
+                    { text: 'Only configured bot admins can manage the admin list.' },
                     { quoted: m }
                 );
                 continue;
             }
 
             if (canManageBot) {
+                if (/^\s*CR\s+admin(?:\s|$)/i.test(text)) {
+                    const adminMatch = text.match(/^\s*CR\s+admin\s+(add|remove|list)(?:\s+(\S+))?\s*$/i);
+                    if (!adminMatch || (adminMatch[1].toLowerCase() === 'list' && adminMatch[2]) ||
+                        (adminMatch[1].toLowerCase() !== 'list' && !adminMatch[2])) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Usage: CR admin add <phone number, JID, or @mention>, CR admin remove <phone number, JID, or @mention>, or CR admin list.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    const action = adminMatch[1].toLowerCase();
+                    if (action === 'list') {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: botState.botAdminUserJids.length
+                                ? `Bot admins:\n${botState.botAdminUserJids.map(jid => `• ${jid}`).join('\n')}`
+                                : 'No bot admins are configured.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    const target = adminMatch[2];
+                    const mentionedJids = message.extendedTextMessage?.contextInfo?.mentionedJid || [];
+                    const userJid = target.startsWith('@')
+                        ? mentionedJids.length === 1
+                            ? normalizeBlockedUserJid(mentionedJids[0])
+                            : undefined
+                        : normalizeBlockedUserJid(target);
+                    if (!userJid) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: target.startsWith('@')
+                                ? 'Mention exactly one valid WhatsApp user.'
+                                : 'Provide a valid phone number, phone JID, or WhatsApp LID.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    const wasAdmin = botState.botAdminUserJids.includes(userJid);
+                    if ((action === 'add' && wasAdmin) || (action === 'remove' && !wasAdmin)) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: action === 'add' ? 'That user is already a bot admin.' : 'That user is not a bot admin.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+                    if (action === 'remove' && botState.botAdminUserJids.length <= 1) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'The last bot admin cannot be removed. Add another admin first.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    const previousAdmins = botState.botAdminUserJids;
+                    botState.botAdminUserJids = action === 'add'
+                        ? [...previousAdmins, userJid]
+                        : previousAdmins.filter(adminJid => adminJid !== userJid);
+                    try {
+                        await persistBotState();
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: action === 'add' ? `Added ${userJid} as a bot admin.` : `Removed ${userJid} as a bot admin.` },
+                            { quoted: m }
+                        );
+                    } catch (error) {
+                        botState.botAdminUserJids = previousAdmins;
+                        console.error('Could not save the bot admin list:', error);
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Could not save the bot admin list. Try again.' },
+                            { quoted: m }
+                        );
+                    }
+                    continue;
+                }
+
                 if (/^\s*CR\s+(?:block|unblock)(?:\s|$)/i.test(text)) {
+                    if (!isBotAdmin) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Only bot admins can block or unblock users.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
                     const blockMatch = text.match(/^\s*CR\s+(block|unblock)\s+(\S+)\s*$/i);
                     if (!blockMatch) {
                         await sock.sendMessage(
@@ -626,6 +762,15 @@ async function startBot() {
                 }
 
                 if (/^\s*CR\s+run(?:\s|$)/i.test(text)) {
+                    if (!isBotAdmin) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Only bot admins can run shell commands.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
                     const runMatch = text.match(/^\s*CR\s+run\s+([\s\S]*\S)\s*$/i);
                     if (!runMatch) {
                         await sock.sendMessage(
@@ -697,6 +842,15 @@ async function startBot() {
 
                     const action = modCommand[1].toLowerCase();
                     const groupJid = modCommand[2];
+                    if (action !== 'list' && !isBotAdmin) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Only bot admins can add or remove mod groups.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
                     if (action === 'list') {
                         await sock.sendMessage(
                             senderJid,
@@ -1045,7 +1199,10 @@ async function startBot() {
                 if (chainedCommand === 'help') {
                     await sock.sendMessage(
                         senderJid,
-                        { text: formatCrHelp(crReplies) },
+                        { text: formatCrHelp(
+                            crReplies,
+                            senderJid !== DISCUSSION_GROUP_JID && (isModGroup || isBotAdmin)
+                        ) },
                         { quoted: m }
                     );
                     continue;
