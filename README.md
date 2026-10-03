@@ -162,17 +162,19 @@ commands, resources, or the default reply. The change is saved to
 `bot-data.json` and takes effect immediately. Any member of the configured mod
 group can use this command.
 
-To replace the image sent by `CR examtime`, send a JPEG, PNG, or WebP image in
-the configured mod group with this exact caption:
+To update the text and replace the image sent by `CR examtime` together, send a
+JPEG, PNG, or WebP image in the configured mod group with the new text in its
+caption:
 
 ```text
-CR update examtime
+CR update examtime Next exam: October 8 at 9:30 AM
 ```
 
-The bot saves the image under `assets/`, updates `bot-data.json`, and removes
-the previous image if it was saved by this command. `CR examtime` then sends
-the existing text reply followed by the saved image. An image update does not
-change the text reply.
+The bot saves the image under `assets/`, updates the text and image path in
+`bot-data.json` together, and removes the previous image if it was saved by this
+command. `CR examtime` then sends the updated text followed by the saved image.
+To replace only the image without changing the text, use the caption
+`CR update examtime`.
 
 The three bus commands send the matching image as a quoted reply. Add these files
 to the `assets/` directory:

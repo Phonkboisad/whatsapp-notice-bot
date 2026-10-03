@@ -278,7 +278,7 @@ function updateCrReply(command, reply) {
     return update;
 }
 
-function updateCrImage(command, imagePath) {
+function updateCrImage(command, imagePath, reply) {
     const update = botDataUpdateQueue.then(async () => {
         const data = JSON.parse(await readFile(BOT_DATA_FILE, 'utf8'));
         if (
@@ -288,6 +288,7 @@ function updateCrImage(command, imagePath) {
             return { updated: false };
         }
 
+        if (reply !== undefined) data.commands[command] = reply;
         if (!isRecord(data.images)) data.images = {};
         const previousImage = data.images[command];
         data.images[command] = imagePath;
@@ -538,10 +539,13 @@ async function startBot() {
                     ].some(type => message[type]);
 
                     if (hasMediaAttachment) {
-                        if (!message.imageMessage || !/^\s*CR\s+update\s+examtime\s*$/i.test(text)) {
+                        const imageUpdateMatch = text.match(
+                            /^\s*CR\s+update\s+examtime(?:\s+([\s\S]*\S))?\s*$/i
+                        );
+                        if (!message.imageMessage || !imageUpdateMatch) {
                             await sock.sendMessage(
                                 senderJid,
-                                { text: 'Attach a JPEG, PNG, or WebP image with the exact caption `CR update examtime`. To update text, send `CR update examtime <new text>`.' },
+                                { text: 'Attach a JPEG, PNG, or WebP image with the caption `CR update examtime <new text>` or `CR update examtime`.' },
                                 { quoted: m }
                             );
                             continue;
@@ -571,7 +575,8 @@ async function startBot() {
                             savedImagePath = `assets/examtime-${randomUUID()}.${extension}`;
                             await writeFile(new URL(savedImagePath, import.meta.url), imageBuffer, { flag: 'wx' });
 
-                            const result = await updateCrImage('examtime', savedImagePath);
+                            const updatedReply = imageUpdateMatch[1]?.trim();
+                            const result = await updateCrImage('examtime', savedImagePath, updatedReply);
                             if (!result.updated) {
                                 await unlink(new URL(savedImagePath, import.meta.url)).catch(() => {});
                                 savedImagePath = undefined;
@@ -592,7 +597,9 @@ async function startBot() {
 
                             await sock.sendMessage(
                                 senderJid,
-                                { text: 'Updated the CR examtime image. CR examtime will send its text and this image.' },
+                                { text: updatedReply
+                                    ? 'Updated the CR examtime text and image.'
+                                    : 'Updated the CR examtime image. CR examtime will send its text and this image.' },
                                 { quoted: m }
                             );
                         } catch (error) {
