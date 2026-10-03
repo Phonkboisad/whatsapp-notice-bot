@@ -173,8 +173,9 @@ CR update examtime Next exam: October 8 at 9:30 AM
 The bot saves the image under `assets/`, updates the text and image path in
 `bot-data.json` together, and removes the previous image if it was saved by this
 command. `CR examtime` then sends the updated text followed by the saved image.
-To replace only the image without changing the text, use the caption
-`CR update examtime`.
+The reply is one image message with the updated text as its caption. If the
+image cannot be sent, the bot sends the text by itself. To replace only the
+image without changing the text, use the caption `CR update examtime`.
 
 The three bus commands send the matching image as a quoted reply. Add these files
 to the `assets/` directory:

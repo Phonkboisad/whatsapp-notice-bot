@@ -911,19 +911,23 @@ async function startBot() {
                 const imagePath = crReplies.images[chainedCommand];
 
                 if (imagePath) {
+                    const reply = crReplies.commands[chainedCommand] || crReplies.default;
                     try {
+                        const image = await readFile(new URL(imagePath, import.meta.url));
                         if (chainedCommand === 'examtime') {
                             await sock.sendMessage(
                                 senderJid,
-                                { text: crReplies.commands.examtime || crReplies.default },
+                                { image, caption: reply },
                                 { quoted: m }
                             );
+                        } else {
+                            await sock.sendMessage(senderJid, { image }, { quoted: m });
                         }
-
-                        const image = await readFile(new URL(imagePath, import.meta.url));
-                        await sock.sendMessage(senderJid, { image }, { quoted: m });
                     } catch (error) {
                         console.error(`Could not send image for CR ${chainedCommand}:`, error);
+                        if (chainedCommand === 'examtime') {
+                            await sock.sendMessage(senderJid, { text: reply }, { quoted: m });
+                        }
                     }
                     continue;
                 }
