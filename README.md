@@ -151,14 +151,15 @@ From a configured mod group, an unblocked member can block or restore a user's
 access to CR commands in the Discussion and configured mod groups:
 
 ```text
-CR block 8801712345678
-CR unblock 8801712345678
+CR block @mention
+CR unblock @mention
 ```
 
-Use the user's phone number with country code, phone JID, or WhatsApp LID. The
-block list is saved in `bot-state.json` and survives restarts. Blocked users can
-still send ordinary messages and are not blocked from CR commands in the Notice
-group.
+Select exactly one person from WhatsApp's mention picker after `CR block @` or
+`CR unblock @`. You can also use the user's phone number with country code,
+phone JID, or WhatsApp LID. The block list is saved in `bot-state.json` and
+survives restarts. Blocked users can still send ordinary messages and are not
+blocked from CR commands in the Notice group.
 
 ### Running a shell command
 

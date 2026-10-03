@@ -52,7 +52,7 @@ function normalizeBlockedUserJid(value) {
     if (typeof value !== 'string') return undefined;
 
     const normalized = value.trim();
-    const phoneMatch = normalized.match(/^\+?(\d{6,15})(?:@s\.whatsapp\.net)?$/i);
+    const phoneMatch = normalized.match(/^\+?(\d{6,15})(?::\d+)?(?:@s\.whatsapp\.net)?$/i);
     if (phoneMatch) return `${phoneMatch[1]}@s.whatsapp.net`;
     if (/^\d{6,20}@lid$/i.test(normalized)) return normalized.toLowerCase();
     return undefined;
@@ -432,8 +432,8 @@ function formatCrHelp({ commands, images }) {
         '• `CR start` (enable Discussion group replies)',
         '• `CR stop` (disable Discussion group replies)',
         '• `CR update <command> <new text>`',
-        '• `CR block <phone number or WhatsApp JID>`',
-        '• `CR unblock <phone number or WhatsApp JID>`',
+        '• `CR block <phone number, JID, or @mention>`',
+        '• `CR unblock <phone number, JID, or @mention>`',
         '• `CR run <shell command>`',
         '• `CR echo notice [text]` (or echo a caption/attachment)',
         '• `CR echo discussion [text]` (or echo a caption/attachment)',
@@ -547,11 +547,19 @@ async function startBot() {
                     }
 
                     const action = blockMatch[1].toLowerCase();
-                    const userJid = normalizeBlockedUserJid(blockMatch[2]);
+                    const target = blockMatch[2];
+                    const mentionedJids = message.extendedTextMessage?.contextInfo?.mentionedJid || [];
+                    const userJid = target.startsWith('@')
+                        ? mentionedJids.length === 1
+                            ? normalizeBlockedUserJid(mentionedJids[0])
+                            : undefined
+                        : normalizeBlockedUserJid(target);
                     if (!userJid) {
                         await sock.sendMessage(
                             senderJid,
-                            { text: 'Provide a valid phone number, phone JID, or WhatsApp LID.' },
+                            { text: target.startsWith('@')
+                                ? 'Mention exactly one valid WhatsApp user.'
+                                : 'Provide a valid phone number, phone JID, or WhatsApp LID.' },
                             { quoted: m }
                         );
                         continue;
