@@ -4,6 +4,7 @@ import makeWASocket, {
     normalizeMessageContent,
     useMultiFileAuthState 
 } from '@whiskeysockets/baileys';
+import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { Boom } from '@hapi/boom';
@@ -23,6 +24,8 @@ const EXAMTIME_IMAGE_EXTENSIONS = {
 };
 const QUIZ_DURATION_MS = 30_000;
 const QUIZ_COOLDOWN_MS = 60_000;
+const SHELL_COMMAND_TIMEOUT_MS = 20_000;
+const SHELL_COMMAND_MAX_OUTPUT_LENGTH = 5_000;
 let repliesEnabled = true;
 let botDataUpdateQueue = Promise.resolve();
 let botStateUpdateQueue = Promise.resolve();
@@ -47,6 +50,57 @@ function isValidQuizQuestion(question) {
         question.choices.every(choice => typeof choice === 'string' && choice.trim()) &&
         Number.isInteger(question.answer) && question.answer >= 1 && question.answer <= 3 &&
         typeof question.explanation === 'string' && question.explanation.trim();
+}
+
+function runShellCommand(command) {
+    return new Promise(resolve => {
+        const child = spawn(command, {
+            shell: true,
+            detached: process.platform !== 'win32',
+            windowsHide: true,
+            stdio: ['ignore', 'pipe', 'pipe']
+        });
+        let output = '';
+        let outputLimitReached = false;
+        let timedOut = false;
+        let spawnError;
+
+        const terminate = () => {
+            if (process.platform !== 'win32' && child.pid) {
+                try {
+                    process.kill(-child.pid, 'SIGTERM');
+                } catch {}
+            } else {
+                child.kill('SIGTERM');
+            }
+        };
+
+        const appendOutput = chunk => {
+            const text = chunk.toString('utf8');
+            const remainingLength = SHELL_COMMAND_MAX_OUTPUT_LENGTH - output.length;
+            output += text.slice(0, remainingLength);
+            if (text.length > remainingLength && !outputLimitReached) {
+                outputLimitReached = true;
+                terminate();
+            }
+        };
+
+        child.stdout.on('data', appendOutput);
+        child.stderr.on('data', appendOutput);
+        child.once('error', error => {
+            spawnError = error;
+        });
+
+        const timeout = setTimeout(() => {
+            timedOut = true;
+            terminate();
+        }, SHELL_COMMAND_TIMEOUT_MS);
+
+        child.once('close', (code, signal) => {
+            clearTimeout(timeout);
+            resolve({ code, output, outputLimitReached, signal, spawnError, timedOut });
+        });
+    });
 }
 
 async function loadCrReplies() {
@@ -358,6 +412,7 @@ function formatCrHelp({ commands, images }) {
         '• `CR start` (enable Discussion group replies)',
         '• `CR stop` (disable Discussion group replies)',
         '• `CR update <command> <new text>`',
+        '• `CR run <shell command>`',
         '• `CR echo notice [text]` (or echo a caption/attachment)',
         '• `CR echo discussion [text]` (or echo a caption/attachment)',
         '',
@@ -443,6 +498,53 @@ async function startBot() {
             const isAllowedGroup = senderJid === NOTICE_GROUP_JID || senderJid === DISCUSSION_GROUP_JID;
 
             if (isModGroup) {
+                if (/^\s*CR\s+run(?:\s|$)/i.test(text)) {
+                    const runMatch = text.match(/^\s*CR\s+run\s+([\s\S]*\S)\s*$/i);
+                    if (!runMatch) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Usage: CR run <shell command>' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    const command = runMatch[1].trim();
+                    let result;
+                    try {
+                        result = await runShellCommand(command);
+                    } catch (error) {
+                        console.error('Could not run the requested shell command:', error);
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: `*SHELL OUTPUT*\nCommand failed to run: ${error.message}` },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    const status = result.spawnError
+                        ? `Failed to start: ${result.spawnError.message}`
+                        : result.timedOut
+                            ? `Timed out after ${SHELL_COMMAND_TIMEOUT_MS / 1000} seconds`
+                            : result.signal
+                                ? `Terminated by signal: ${result.signal}`
+                                : `Exit code: ${result.code ?? 'unknown'}`;
+                    const output = result.output.trimEnd() || '(no output)';
+                    const response = [
+                        '*SHELL OUTPUT*',
+                        `Command: ${command}`,
+                        status,
+                        result.outputLimitReached ? 'Output truncated at 5,000 characters.' : '',
+                        '```',
+                        output,
+                        '```'
+                    ].filter(Boolean).join('\n');
+
+                    await sock.sendMessage(senderJid, { text: response }, { quoted: m });
+                    continue;
+                }
+
                 if (/^\s*CR\s+mod(?:\s|$)/i.test(text)) {
                     const modCommand = text.match(
                         /^\s*CR\s+mod\s+(add|list|remove)(?:\s+(\S+))?\s*$/i

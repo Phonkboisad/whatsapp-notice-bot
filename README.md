@@ -147,6 +147,21 @@ The bot prints participating group JIDs when it connects. The original mod
 group cannot be removed. Added groups are stored locally in `bot-state.json`;
 members of those groups can run mod commands and use `CR quiz` for testing.
 
+### Running a shell command
+
+Members of configured mod groups can run a shell command on the server hosting
+the bot:
+
+```text
+CR run pwd
+```
+
+The bot replies with a `SHELL OUTPUT` heading, the exit status, and captured
+standard output/error in a monospace block. Commands are stopped after 20
+seconds, and output is limited to 5,000 characters. They run with the operating
+system permissions of the bot process. Only add trusted people to mod groups;
+do not run the bot as root or with administrator privileges.
+
 ### Updating a text reply or examtime image
 
 In the configured mod group, update an existing text command without restarting
