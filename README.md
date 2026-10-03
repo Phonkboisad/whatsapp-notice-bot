@@ -1,340 +1,134 @@
-# WhatsApp Notice Bot
+# WhatsApp CR Bot
 
-A WhatsApp group bot for class reminders and `CR` commands, built with
-`@whiskeysockets/baileys`.
+A Node.js WhatsApp bot built with Baileys. Copy or fork this project, set your
+group IDs and replies, link a WhatsApp account, then run it on a machine that
+can stay online.
 
-## Features
+> This version responds to commands; it does not schedule announcements.
 
-- Connects to WhatsApp Web through Baileys.
-- Prints a QR code in the terminal when a new login is required.
-- Saves the authenticated session in `auth_session/` so you do not scan every time.
-- Lists participating group names and IDs after connecting.
-- Sends a scheduled class reminder to the configured group from Sunday through Thursday at 08:30.
-- Responds to `CR` commands in the configured group.
-- Sends bus schedule images for `CR bus-class`, `CR bus-exam`, and `CR bus-friday`.
-- Reconnects automatically after most connection interruptions.
+## Setup
 
-## Requirements
-
-- Node.js 18 or newer.
-- A WhatsApp account that can access the target group.
-- The target WhatsApp group ID, also called its JID. It ends with `@g.us`, for example:
-
-```text
-120363012345678901@g.us
-```
-
-## Installation
-
-Clone the repository and install dependencies:
+Requirements: Node.js 18 or newer and a WhatsApp account that can join your
+groups.
 
 ```bash
-git clone https://github.com/Phonkboisad/whatsapp-notice-bot.git
-cd whatsapp-notice-bot
+git clone <your-repository-url>
+cd <your-project-folder>
 npm install
 ```
 
-## Configuration
+1. Set `BOT_ADMIN_USER_JIDS` in the bot process environment before its first
+   start to bootstrap the admin list. Use your WhatsApp JID; multiple JIDs can
+   be comma-separated. PM2 and systemd can set this variable. This project does
+   not load `.env` files.
+2. Start once with `node index.js`. Scan the QR code from WhatsApp's
+   **Settings > Linked devices**. The bot prints the group names and JIDs it can
+   see; copy the JIDs for your groups.
+3. In `index.js`, replace `NOTICE_GROUP_JID`, `DISCUSSION_GROUP_JID`, and
+   `MOD_GROUP_JID` with your group JIDs. Group JIDs end in `@g.us`.
+4. Edit `bot-data.json` to set replies, images, resources, and quiz questions.
+   Put image files in `assets/` and point to them from the `images` object.
+5. Restart with `node index.js` to use your group configuration.
 
-Open `index.js` and set `NOTICE_GROUP_JID` to the group where the bot should send reminders and process commands:
+The bot must be a member of each group where it should answer. Changes to
+`bot-data.json` take effect without restarting. The `auth_session/` and
+`bot-state.json` files are local state and should not be committed. Keep
+`auth_session/` private; it contains WhatsApp credentials.
 
-```js
-const NOTICE_GROUP_JID = '120363406812832614@g.us';
-```
+## Important Files
 
-The current scheduled announcement is defined in the `cron.schedule` callback. Update the room names, times, and message text there when the class routine changes.
+- `index.js`: bot logic, command handling, WhatsApp session bootstrap, and
+  automation commands.
+- `bot-data.json`: message replies, images, resources, and quiz questions.
+- `bot-state.json`: runtime state such as quiz scores, trusted mod groups, and
+  bot admin settings.
+- `auth_session/`: local Baileys session data and credentials.
+- `assets/`: images that the bot can send for replies like `examtime`.
 
-The cron expression is:
+## Common Setup Notes
 
-```text
-30 8 * * 0-4
-```
-
-This means 08:30 on Sunday through Thursday, using the machine's local timezone.
-
-## First Login
-
-Start the bot from the project directory:
-
-```bash
-node index.js
-```
-
-When the terminal displays the QR code, open WhatsApp on your phone and choose:
-
-`Settings` -> `Linked devices` -> `Link a device`
-
-Scan the terminal QR code. Once connected, the bot prints a list of groups and their IDs. The session is then saved under `auth_session/`.
-
-If a fresh QR code is needed, stop the bot and delete `auth_session/`, then run `node index.js` again. Do not commit that directory; it contains login credentials and is ignored by Git.
-
-## Finding a Group ID
-
-After a successful connection, the terminal prints output similar to:
-
-```text
-Available WhatsApp groups:
-test 101: 120363430226894816@g.us
-```
-
-Copy the ID ending in `@g.us` into `NOTICE_GROUP_JID`, then restart the bot.
+- The bot only reads `.env` files indirectly via the process environment; it does
+  not automatically load `.env` files itself.
+- `NOTICE_GROUP_JID`, `DISCUSSION_GROUP_JID`, and `MOD_GROUP_JID` are constants
+  in `index.js`. Update them to match the WhatsApp groups you want the bot to
+  monitor.
+- After the first successful QR scan, the bot logs the group IDs it can reach;
+  use those values when wiring up the groups you actually want to use.
+- The bot stores its runtime state in `bot-state.json` and persists changes as it
+  handles commands.
 
 ## Commands
 
-Commands are recognized only in the configured target group. Matching is case-insensitive.
+| Command | Access | Purpose |
+| --- | --- | --- |
+| `CR` | Notice, Discussion, mod groups, admins | Send the default reply |
+| `CR <name>` | Notice, Discussion, mod groups, admins | Send a configured text or image reply |
+| `CR help` | Supported groups | Show the short guide or, in a mod group, the full manual |
+| `CR myid` | Anyone who can message the bot | Show your own WhatsApp JID |
+| `CR rsrc` | Notice, Discussion, mod groups, admins | Browse configured resources |
+| `CR quiz`, `CR score` | Discussion, mod groups, admins | Start a quiz / view scores |
+| `CR update <name> <text>` | Mod groups, admins | Change an existing text reply |
+| `CR update examtime <text>` + image | Mod groups, admins | Update examtime text and image together |
+| `CR mod list` | Mod groups, admins | List trusted mod groups |
+| `CR start`, `CR stop` | Mod groups, admins | Enable or disable Discussion replies |
+| `CR echo notice/discussion` | Mod groups, admins | Forward a message or attachment |
+| `CR admin add/remove/list` | Bot admins only | Manage bot admins |
+| `CR mod add/remove` | Bot admins only | Manage trusted mod groups |
+| `CR block/unblock` | Bot admins only | Restrict CR commands in Discussion/mod groups |
+| `CR run <shell command>` | Bot admins only | Run a server command and return its output |
 
-### Default command
+Use `CR help` in the Discussion group for its smaller command guide. Use it in
+a mod group for the full manual, including admin-only commands.
 
-Send:
+### Examtime Image
 
-```text
-CR
-```
-
-The bot replies:
-
-```text
-Keep studying and stay focused.
-```
-
-### Chained commands
-
-The following commands read their replies from `bot-data.json`:
-
-```text
-CR classtime
-CR examtime
-CR special
-CR assignment
-CR classtest
-CR labreport
-CR bus-class
-CR bus-exam
-CR bus-friday
-CR help
-```
-
-`CR help` shows a Discussion command guide in the Discussion group and a full
-mod/admin manual in configured mod groups. Admins get the full manual in other
-groups too. Command and image entries update from `bot-data.json`.
-
-### Quiz
-
-In the Discussion group or any configured mod group, send `CR quiz` to start a random general-knowledge
-question written in English. Reply with `1`, `2`, or `3` within 30 seconds;
-each person gets one attempt, and a correct answer earns one point. The bot
-reveals the answer and a short explanation when time is up. A new round can
-start after a 60-second cooldown. Questions are randomized without repeats until
-the question bank is exhausted, then a new cycle begins. The used-question
-history is saved locally, so restarting the bot does not restart the cycle.
-
-Use `CR score` in the same group to see its top five players. Scores are saved
-locally in `bot-state.json` and survive bot restarts; this file is ignored by
-Git. Edit the `quizQuestions` list in `bot-data.json` to change or add questions.
-Each group has a separate quiz round and leaderboard.
-
-### Managing mod groups
-
-Only bot admins can add or remove mod groups. From a configured mod group or as
-a bot admin, use the target group's JID:
-
-```text
-CR mod add 120363012345678901@g.us
-CR mod list
-CR mod remove 120363012345678901@g.us
-```
-
-The bot prints participating group JIDs when it connects. The original mod
-group cannot be removed. Added groups are stored locally in `bot-state.json`.
-Mod-group members can use regular mod tools; group changes, user blocks, shell
-commands, and admin-list changes are restricted to bot admins.
-
-### Personal bot admin
-
-In any group or direct chat where the bot receives messages, send `CR myid` to
-see your WhatsApp JID. To bootstrap the admin list when no admin list is saved
-yet, set `BOT_ADMIN_USER_JIDS` in the VPS process environment and restart the bot:
-
-```text
-BOT_ADMIN_USER_JIDS=15551234567@s.whatsapp.net
-```
-
-Set this variable in the PM2 ecosystem configuration or systemd service; the
-bot does not load `.env` files. Multiple admins can be comma-separated. The
-admin list is saved in `bot-state.json` after changes. Once bootstrapped, admins
-can manage it with `CR admin add <phone number, JID, or @mention>`,
-`CR admin remove <phone number, JID, or @mention>`, and `CR admin list`. The last
-admin cannot be removed. Admins can use all CR commands in any group where the
-bot is present and are exempt from the CR block list. `CR run` executes with the
-bot process's server permissions.
-
-Bot admins can block or restore a user's access to CR commands in the Discussion
-and configured mod groups:
-
-```text
-CR block @mention
-CR unblock @mention
-```
-
-Select exactly one person from WhatsApp's mention picker after `CR block @` or
-`CR unblock @`. You can also use the user's phone number with country code,
-phone JID, or WhatsApp LID. The block list is saved in `bot-state.json` and
-survives restarts. Blocked users can still send ordinary messages and are not
-blocked from CR commands in the Notice group.
-
-### Running a shell command
-
-Only bot admins can run a shell command on the server hosting the bot:
-
-```text
-CR run pwd
-```
-
-The bot replies with a `SHELL OUTPUT` heading, the exit status, and captured
-standard output/error in a monospace block. Commands are stopped after 20
-seconds, and output is limited to 5,000 characters. They run with the operating
-system permissions of the bot process. Only add trusted people to mod groups;
-do not run the bot as root or with administrator privileges.
-
-### Updating a text reply or examtime image
-
-In the configured mod group, update an existing text command without restarting
-the bot:
+In a mod group, attach a JPEG, PNG, or WebP image and caption it with the new
+reply text:
 
 ```text
 CR update examtime Next exam: October 8 at 9:30 AM
 ```
 
-Everything after the command name becomes the new reply text. Only existing
-keys in the `commands` object can be updated; this does not change image
-commands, resources, or the default reply. The change is saved to
-`bot-data.json` and takes effect immediately. Any member of the configured mod
-group can use this command.
+`CR examtime` sends one image with that text as its caption. Use the caption
+`CR update examtime` to replace only the image. The bot removes the previous
+image it saved for this command.
 
-To update the text and replace the image sent by `CR examtime` together, send a
-JPEG, PNG, or WebP image in the configured mod group with the new text in its
-caption:
+### Admins And Mod Groups
 
-```text
-CR update examtime Next exam: October 8 at 9:30 AM
-```
-
-The bot saves the image under `assets/`, updates the text and image path in
-`bot-data.json` together, and removes the previous image if it was saved by this
-command. `CR examtime` then sends the updated text followed by the saved image.
-The reply is one image message with the updated text as its caption. If the
-image cannot be sent, the bot sends the text by itself. To replace only the
-image without changing the text, use the caption `CR update examtime`.
-
-The three bus commands send the matching image as a quoted reply. Add these files
-to the `assets/` directory:
+The initial admin list is bootstrapped from `BOT_ADMIN_USER_JIDS` only when
+`bot-state.json` has no saved `botAdminUserJids` list. After that, bot admins
+can manage the list with:
 
 ```text
-assets/bus-class.jpg
-assets/bus-exam.jpg
-assets/bus-friday.jpg
+CR admin add @mention
+CR admin remove @mention
+CR admin list
 ```
 
-The image paths are configured in the `images` object in `bot-data.json`. If a
-file is missing or cannot be read, the bot logs an error and does not send a
-fallback text reply for that image command.
+You can also use a phone number or WhatsApp JID. The last admin cannot be
+removed. Mod groups give their members regular mod tools; sensitive actions
+such as adding/removing groups, blocking users, changing admins, and running
+shell commands are reserved for bot admins.
 
-Edit the values in `bot-data.json` each day:
+### Shell Command Safety
 
-```json
-{
-	"default": "Keep studying and stay focused.",
-	"commands": {
-		"classtime": "09:00 AM - Room 402",
-		"examtime": "10:00 AM - Mathematics",
-		"special": "Guest lecture today",
-		"assignment": "Submit Assignment 3 by 8 PM",
-		"classtest": "Class test at 11:00 AM"
-	},
-	"images": {
-		"bus-class": "assets/bus-class.jpg",
-		"bus-exam": "assets/bus-exam.jpg",
-		"bus-friday": "assets/bus-friday.jpg"
-	}
-}
-```
+`CR run` executes commands with the permissions of the bot process. It stops
+commands after 20 seconds and limits output to 5,000 characters. Do not add
+untrusted admins, and do not run the bot as root or an administrator. `pm2 stop`
+is explicitly refused because it would stop the bot.
 
-The bot reads `bot-data.json` whenever it receives a `CR` command, so you do not need to restart it after updating the file. Keep the JSON valid and preserve the command names. If the file cannot be read, the bot uses the default reply and logs an error in the terminal.
+## Keep It Running
 
-The command parser also accepts extra text before or after `CR`, for example:
-
-```text
-please CR classtime
-```
-
-### Mod group echo
-
-In the mod group, send a message with an image, video, document, audio file,
-sticker, or album and use `CR echo notice` or `CR echo discussion` as its
-caption when supported. The bot forwards that message to the selected group.
-It then edits the forwarded caption to remove the `CR echo ...` command while
-keeping any text after the destination name.
-You can also reply to a message with an attachment using one of those commands.
-The bot prefixes each echo with a clickable WhatsApp mention of the member who
-issued the command (for example, `@1234567890:`). For quoted attachments, the
-mention is the command sender, not the original message author.
-Captioned image, video, and document echoes include the prefix in the cleaned
-caption. For uncaptained or quoted attachments, the bot sends the prefix as a
-separate message immediately before forwarding the attachment. If WhatsApp does
-not provide a phone-number JID, the prefix is `@unknown:` and cannot be clickable.
-
-Text-only echoes use the same prefix:
-
-```text
-CR echo discussion hello
-CR echo notice "Class starts at 9 AM"
-CR echo discussion "Please share your questions here"
-```
-
-## Running in Production
-
-Keep the bot process running on a machine with a stable internet connection. For a simple run:
+For local testing:
 
 ```bash
-npm install
 node index.js
 ```
 
-The bot must remain running for scheduled messages and command replies to work. If the process stops, start it again with `node index.js`. The saved `auth_session/` allows it to reconnect without scanning again unless WhatsApp logs the device out.
-
-## Git Workflow
-
-Check the working tree before committing:
-
-```bash
-git status
-```
-
-Validate the JavaScript file:
+For a VPS, run it with a process manager such as PM2 or systemd and keep the
+`BOT_ADMIN_USER_JIDS` environment variable in that service's configuration.
+The project has no automated test suite; check JavaScript syntax with:
 
 ```bash
 node --check index.js
 ```
-
-Stage, commit, and push a change:
-
-```bash
-git add index.js README.md package.json package-lock.json
-git commit -m "docs: add bot setup and usage guide"
-git push origin main
-```
-
-Never commit `auth_session/`, `node_modules/`, `.env`, or log files.
-
-## Project Files
-
-```text
-index.js          Bot connection, scheduler, and command handling
-bot-data.json     Daily CR replies and chained command content
-package.json      Project metadata and dependencies
-package-lock.json Locked dependency versions
-README.md         Setup and usage guide
-.gitignore        Excludes credentials, dependencies, and logs
-```
-1787980191
-
