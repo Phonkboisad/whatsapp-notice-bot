@@ -147,7 +147,7 @@ The bot prints participating group JIDs when it connects. The original mod
 group cannot be removed. Added groups are stored locally in `bot-state.json`;
 members of those groups can run mod commands and use `CR quiz` for testing.
 
-### Updating a text reply
+### Updating a text reply or examtime image
 
 In the configured mod group, update an existing text command without restarting
 the bot:
@@ -161,6 +161,18 @@ keys in the `commands` object can be updated; this does not change image
 commands, resources, or the default reply. The change is saved to
 `bot-data.json` and takes effect immediately. Any member of the configured mod
 group can use this command.
+
+To replace the image sent by `CR examtime`, send a JPEG, PNG, or WebP image in
+the configured mod group with this exact caption:
+
+```text
+CR update examtime
+```
+
+The bot saves the image under `assets/`, updates `bot-data.json`, and removes
+the previous image if it was saved by this command. `CR examtime` then sends
+the existing text reply followed by the saved image. An image update does not
+change the text reply.
 
 The three bus commands send the matching image as a quoted reply. Add these files
 to the `assets/` directory:
