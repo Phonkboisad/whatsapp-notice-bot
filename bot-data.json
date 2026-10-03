@@ -2,7 +2,7 @@
   "default": "use cr help for available commands",
   "commands": {
     "classtime": "No upcoming classes right now. Keep studying!",
-    "examtime": "NEXT EXAM SCHEDULE -\n Date: 01/10/2026 \n Subject: GEED-2302 \n Time Slot: 9:30Am- 11:00AM",
+    "examtime": "Date: 04/10/2026 \n Subject: CSE-2321 \n                 *Data Structure* \n Time Slot: 2:30Am- 4:00AM",
     "special": "Special announcements will be added soon.",
     "assignment": "DS Assignment: Previous Year Q Soln\n✪ হাতে লিখে করা লাগবে।\n✪ জমাদানের তারিখ: ০৪/১০/২০২৬ DS এক্সামের পর পরই।\n✪ A4 page Both side\n✪ কার প্রশ্ন কোনটা:\n1. Sp-26 যাদের আইডির লাস্ট ডিজিট {0,4,8}\n2. Sp-25 যাদের আইডির লাস্ট ডিজিট {2,6}\n3. Au-25 যাদের আইডির লাস্ট ডিজিট {3,7}\n4. Sp-24 যাদের আইডির লাস্ট ডিজিট {1,5,9}",
     "classtest": "Classtest details will be added soon.",
