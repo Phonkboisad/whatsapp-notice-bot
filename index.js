@@ -58,6 +58,13 @@ function normalizeBlockedUserJid(value) {
     return undefined;
 }
 
+const BOT_ADMIN_USER_JIDS = new Set(
+    (process.env.BOT_ADMIN_USER_JIDS || '')
+        .split(',')
+        .map(normalizeBlockedUserJid)
+        .filter(Boolean)
+);
+
 function isValidQuizQuestion(question) {
     return isRecord(question) &&
         typeof question.question === 'string' && question.question.trim() &&
@@ -215,6 +222,11 @@ function getQuizParticipantId(key) {
     }
 
     return participantJids.find(jid => typeof jid === 'string' && jid.length > 0);
+}
+
+function getMessageSenderUserJid(key, remoteJid) {
+    return normalizeBlockedUserJid(getQuizParticipantId(key)) ||
+        normalizeBlockedUserJid(remoteJid);
 }
 
 function formatQuizQuestion(question) {
@@ -416,6 +428,7 @@ function formatCrHelp({ commands, images }) {
         '*General*',
         '• `CR` (default reply)',
         '• `CR help`',
+        '• `CR myid` (show your WhatsApp JID)',
         textCommands,
         '',
         '*Resources*',
@@ -518,8 +531,10 @@ async function startBot() {
 
             const isModGroup = botState.modGroupJids.includes(senderJid);
             const isAllowedGroup = senderJid === NOTICE_GROUP_JID || senderJid === DISCUSSION_GROUP_JID;
-            const senderUserJid = getQuizParticipantId(m.key);
-            const isBlockedFromCr = senderUserJid && botState.blockedCrUserJids.includes(senderUserJid);
+            const senderUserJid = getMessageSenderUserJid(m.key, senderJid);
+            const isBotAdmin = senderUserJid && BOT_ADMIN_USER_JIDS.has(senderUserJid);
+            const canManageBot = isModGroup || isBotAdmin;
+            const isBlockedFromCr = !isBotAdmin && senderUserJid && botState.blockedCrUserJids.includes(senderUserJid);
 
             if (
                 isBlockedFromCr &&
@@ -534,7 +549,16 @@ async function startBot() {
                 continue;
             }
 
-            if (isModGroup) {
+            if (/^\s*CR\s+myid\s*$/i.test(text) && (isAllowedGroup || isModGroup || isBotAdmin)) {
+                await sock.sendMessage(
+                    senderJid,
+                    { text: senderUserJid ? `Your WhatsApp JID: ${senderUserJid}` : 'Could not determine your WhatsApp JID.' },
+                    { quoted: m }
+                );
+                continue;
+            }
+
+            if (canManageBot) {
                 if (/^\s*CR\s+(?:block|unblock)(?:\s|$)/i.test(text)) {
                     const blockMatch = text.match(/^\s*CR\s+(block|unblock)\s+(\S+)\s*$/i);
                     if (!blockMatch) {
@@ -980,8 +1004,8 @@ async function startBot() {
                 }
             }
 
-            if (!isModGroup && !isAllowedGroup) continue;
-            if (!isModGroup && !repliesEnabled) continue;
+            if (!isModGroup && !isAllowedGroup && !isBotAdmin) continue;
+            if (!isModGroup && !isBotAdmin && !repliesEnabled) continue;
 
             const activeQuiz = activeQuizRounds.get(senderJid);
             if (activeQuiz && /^[1-3]$/.test(text.trim())) {
@@ -1028,7 +1052,7 @@ async function startBot() {
                 }
 
                 if (chainedCommand === 'quiz') {
-                    if (senderJid !== DISCUSSION_GROUP_JID && !isModGroup) {
+                    if (senderJid !== DISCUSSION_GROUP_JID && !isModGroup && !isBotAdmin) {
                         await sock.sendMessage(
                             senderJid,
                             { text: 'The quiz is available only in the Discussion group and configured mod groups.' },
@@ -1096,7 +1120,7 @@ async function startBot() {
 
                 if (chainedCommand === 'score') {
                     const scores = botState.quizScores[senderJid] || {};
-                    const response = senderJid === DISCUSSION_GROUP_JID || isModGroup
+                    const response = senderJid === DISCUSSION_GROUP_JID || isModGroup || isBotAdmin
                         ? formatQuizScoreboard(scores)
                         : 'Quiz scores are available only in the Discussion group and configured mod groups.';
                     await sock.sendMessage(senderJid, { text: response }, { quoted: m });

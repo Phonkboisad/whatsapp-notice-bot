@@ -147,6 +147,22 @@ The bot prints participating group JIDs when it connects. The original mod
 group cannot be removed. Added groups are stored locally in `bot-state.json`;
 members of those groups can run mod commands and use `CR quiz` for testing.
 
+### Personal bot admin
+
+In the Notice, Discussion, or a configured mod group, send `CR myid` to see
+your WhatsApp JID. Add that JID to the `BOT_ADMIN_USER_JIDS` environment
+variable on the VPS, then restart the bot:
+
+```text
+BOT_ADMIN_USER_JIDS=15551234567@s.whatsapp.net
+```
+
+Set this variable in the PM2 ecosystem configuration or systemd service; the
+bot does not load `.env` files. Multiple admins can be comma-separated. An
+allowlisted admin can use all CR commands in any group where the bot is present,
+including mod-only commands, and is exempt from the CR block list. This includes
+`CR run`, which executes with the bot process's server permissions.
+
 From a configured mod group, an unblocked member can block or restore a user's
 access to CR commands in the Discussion and configured mod groups:
 
