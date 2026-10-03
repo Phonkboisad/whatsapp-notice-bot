@@ -147,6 +147,19 @@ The bot prints participating group JIDs when it connects. The original mod
 group cannot be removed. Added groups are stored locally in `bot-state.json`;
 members of those groups can run mod commands and use `CR quiz` for testing.
 
+From a configured mod group, an unblocked member can block or restore a user's
+access to CR commands in the Discussion and configured mod groups:
+
+```text
+CR block 8801712345678
+CR unblock 8801712345678
+```
+
+Use the user's phone number with country code, phone JID, or WhatsApp LID. The
+block list is saved in `bot-state.json` and survives restarts. Blocked users can
+still send ordinary messages and are not blocked from CR commands in the Notice
+group.
+
 ### Running a shell command
 
 Members of configured mod groups can run a shell command on the server hosting

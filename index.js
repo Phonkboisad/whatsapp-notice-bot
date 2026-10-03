@@ -30,7 +30,12 @@ let repliesEnabled = true;
 let botDataUpdateQueue = Promise.resolve();
 let botStateUpdateQueue = Promise.resolve();
 let botStateLoadPromise;
-let botState = { quizScores: {}, quizQuestionHistory: [], modGroupJids: [MOD_GROUP_JID] };
+let botState = {
+    quizScores: {},
+    quizQuestionHistory: [],
+    modGroupJids: [MOD_GROUP_JID],
+    blockedCrUserJids: []
+};
 const resourceSelectionState = new Map();
 const activeQuizRounds = new Map();
 const quizCooldowns = new Map();
@@ -41,6 +46,16 @@ function isRecord(value) {
 
 function isGroupJid(value) {
     return typeof value === 'string' && /^\d+(?:-\d+)?@g\.us$/.test(value);
+}
+
+function normalizeBlockedUserJid(value) {
+    if (typeof value !== 'string') return undefined;
+
+    const normalized = value.trim();
+    const phoneMatch = normalized.match(/^\+?(\d{6,15})(?:@s\.whatsapp\.net)?$/i);
+    if (phoneMatch) return `${phoneMatch[1]}@s.whatsapp.net`;
+    if (/^\d{6,20}@lid$/i.test(normalized)) return normalized.toLowerCase();
+    return undefined;
 }
 
 function isValidQuizQuestion(question) {
@@ -131,6 +146,9 @@ function ensureBotStateLoaded() {
                 const configuredModGroups = Array.isArray(data?.modGroupJids)
                     ? data.modGroupJids.filter(isGroupJid)
                     : [];
+                const blockedCrUserJids = Array.isArray(data?.blockedCrUserJids)
+                    ? [...new Set(data.blockedCrUserJids.map(normalizeBlockedUserJid).filter(Boolean))]
+                    : [];
 
                 for (const [groupJid, groupScores] of Object.entries(scores)) {
                     if (!isRecord(groupScores)) continue;
@@ -148,7 +166,8 @@ function ensureBotStateLoaded() {
                     quizQuestionHistory: Array.isArray(data?.quizQuestionHistory)
                         ? data.quizQuestionHistory.filter(question => typeof question === 'string')
                         : [],
-                    modGroupJids: [...new Set([MOD_GROUP_JID, ...configuredModGroups])]
+                    modGroupJids: [...new Set([MOD_GROUP_JID, ...configuredModGroups])],
+                    blockedCrUserJids
                 };
             } catch (error) {
                 if (error.code !== 'ENOENT') {
@@ -157,7 +176,8 @@ function ensureBotStateLoaded() {
                 botState = {
                     quizScores: {},
                     quizQuestionHistory: [],
-                    modGroupJids: [MOD_GROUP_JID]
+                    modGroupJids: [MOD_GROUP_JID],
+                    blockedCrUserJids: []
                 };
             }
         })();
@@ -412,6 +432,8 @@ function formatCrHelp({ commands, images }) {
         '• `CR start` (enable Discussion group replies)',
         '• `CR stop` (disable Discussion group replies)',
         '• `CR update <command> <new text>`',
+        '• `CR block <phone number or WhatsApp JID>`',
+        '• `CR unblock <phone number or WhatsApp JID>`',
         '• `CR run <shell command>`',
         '• `CR echo notice [text]` (or echo a caption/attachment)',
         '• `CR echo discussion [text]` (or echo a caption/attachment)',
@@ -496,8 +518,81 @@ async function startBot() {
 
             const isModGroup = botState.modGroupJids.includes(senderJid);
             const isAllowedGroup = senderJid === NOTICE_GROUP_JID || senderJid === DISCUSSION_GROUP_JID;
+            const senderUserJid = getQuizParticipantId(m.key);
+            const isBlockedFromCr = senderUserJid && botState.blockedCrUserJids.includes(senderUserJid);
+
+            if (
+                isBlockedFromCr &&
+                (isModGroup || senderJid === DISCUSSION_GROUP_JID) &&
+                /\bCR\b/i.test(text)
+            ) {
+                await sock.sendMessage(
+                    senderJid,
+                    { text: 'You are blocked from using CR commands in this group.' },
+                    { quoted: m }
+                );
+                continue;
+            }
 
             if (isModGroup) {
+                if (/^\s*CR\s+(?:block|unblock)(?:\s|$)/i.test(text)) {
+                    const blockMatch = text.match(/^\s*CR\s+(block|unblock)\s+(\S+)\s*$/i);
+                    if (!blockMatch) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Usage: CR block <phone number or WhatsApp JID> or CR unblock <phone number or WhatsApp JID>.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    const action = blockMatch[1].toLowerCase();
+                    const userJid = normalizeBlockedUserJid(blockMatch[2]);
+                    if (!userJid) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Provide a valid phone number, phone JID, or WhatsApp LID.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    const wasBlocked = botState.blockedCrUserJids.includes(userJid);
+                    if ((action === 'block' && wasBlocked) || (action === 'unblock' && !wasBlocked)) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: action === 'block' ? 'That user is already blocked from CR commands.' : 'That user is not blocked from CR commands.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    const previousBlockedUsers = botState.blockedCrUserJids;
+                    botState.blockedCrUserJids = action === 'block'
+                        ? [...previousBlockedUsers, userJid]
+                        : previousBlockedUsers.filter(blockedJid => blockedJid !== userJid);
+
+                    try {
+                        await persistBotState();
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: action === 'block'
+                                ? `Blocked ${userJid} from CR commands in Discussion and mod groups.`
+                                : `Unblocked ${userJid} for CR commands in Discussion and mod groups.` },
+                            { quoted: m }
+                        );
+                    } catch (error) {
+                        botState.blockedCrUserJids = previousBlockedUsers;
+                        console.error('Could not save the CR blocked-user list:', error);
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Could not save the CR blocked-user list. Try again.' },
+                            { quoted: m }
+                        );
+                    }
+                    continue;
+                }
+
                 if (/^\s*CR\s+run(?:\s|$)/i.test(text)) {
                     const runMatch = text.match(/^\s*CR\s+run\s+([\s\S]*\S)\s*$/i);
                     if (!runMatch) {
@@ -510,6 +605,15 @@ async function startBot() {
                     }
 
                     const command = runMatch[1].trim();
+                    if (/^pm2\s+stop(?:\s|$)/i.test(command)) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'This command cannot be run because `pm2 stop` would stop the bot and make it unusable.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
                     let result;
                     try {
                         result = await runShellCommand(command);
