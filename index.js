@@ -10,6 +10,16 @@ import { readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { Boom } from '@hapi/boom';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
+import {
+    createGameAccount,
+    GAME_DAILY_ATTEMPT_LIMIT,
+    GAME_TYPES,
+    getGameLeaderboard,
+    getLocalDayKey,
+    playGameTurn,
+    sanitizeGameName,
+    transferGamePoints as applyGamePointTransfer
+} from './cse-game.js';
 
 const NOTICE_GROUP_JID = '120363400837000305@g.us';
 const DISCUSSION_GROUP_JID = '120363406812832614@g.us';
@@ -28,7 +38,7 @@ const SHELL_COMMAND_TIMEOUT_MS = 20_000;
 const SHELL_COMMAND_MAX_OUTPUT_LENGTH = 5_000;
 const GIPHY_API_KEY_IN_CODE = 'PASTE_YOUR_GIPHY_API_KEY_HERE';
 const GIPHY_API_KEY = process.env.GIPHY_API_KEY?.trim() ||
-    (GIPHY_API_KEY_IN_CODE === 'yzSuVH92Rx7OGiIlBlLYcxaD23LvPJis' ? '' : GIPHY_API_KEY_IN_CODE);
+    (GIPHY_API_KEY_IN_CODE.startsWith('PASTE_') ? '' : GIPHY_API_KEY_IN_CODE);
 const GIPHY_TAG = process.env.GIPHY_TAG?.trim() || 'meme';
 const GIPHY_REQUEST_TIMEOUT_MS = 15_000;
 const GIPHY_API_MAX_RESPONSE_BYTES = 64 * 1024;
@@ -41,6 +51,7 @@ let botStateLoadPromise;
 let botState = {
     quizScores: {},
     quizQuestionHistory: [],
+    gameAccounts: {},
     modGroupJids: [MOD_GROUP_JID],
     blockedCrUserJids: [],
     botAdminUserJids: []
@@ -48,6 +59,7 @@ let botState = {
 const resourceSelectionState = new Map();
 const activeQuizRounds = new Map();
 const quizCooldowns = new Map();
+let gameUpdateQueue = Promise.resolve();
 
 function isRecord(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -370,6 +382,10 @@ function ensureBotStateLoaded() {
                 const data = JSON.parse(await readFile(BOT_STATE_FILE, 'utf8'));
                 const scores = isRecord(data) && isRecord(data.quizScores) ? data.quizScores : {};
                 const quizScores = {};
+                const savedGameAccounts = isRecord(data) && isRecord(data.gameAccounts)
+                    ? data.gameAccounts
+                    : {};
+                const gameAccounts = {};
                 const configuredModGroups = Array.isArray(data?.modGroupJids)
                     ? data.modGroupJids.filter(isGroupJid)
                     : [];
@@ -391,11 +407,28 @@ function ensureBotStateLoaded() {
                     );
                 }
 
+                for (const [groupJid, groupAccounts] of Object.entries(savedGameAccounts)) {
+                    if (!isGroupJid(groupJid) || !isRecord(groupAccounts)) continue;
+
+                    const validAccounts = {};
+                    for (const [userJid, account] of Object.entries(groupAccounts)) {
+                        if (
+                            normalizeBlockedUserJid(userJid) !== userJid ||
+                            !isRecord(account)
+                        ) {
+                            continue;
+                        }
+                        validAccounts[userJid] = createGameAccount(account);
+                    }
+                    if (Object.keys(validAccounts).length) gameAccounts[groupJid] = validAccounts;
+                }
+
                 botState = {
                     quizScores,
                     quizQuestionHistory: Array.isArray(data?.quizQuestionHistory)
                         ? data.quizQuestionHistory.filter(question => typeof question === 'string')
                         : [],
+                    gameAccounts,
                     modGroupJids: [...new Set([MOD_GROUP_JID, ...configuredModGroups])],
                     blockedCrUserJids,
                     botAdminUserJids
@@ -407,6 +440,7 @@ function ensureBotStateLoaded() {
                 botState = {
                     quizScores: {},
                     quizQuestionHistory: [],
+                    gameAccounts: {},
                     modGroupJids: [MOD_GROUP_JID],
                     blockedCrUserJids: [],
                     botAdminUserJids: [...INITIAL_BOT_ADMIN_USER_JIDS]
@@ -433,6 +467,49 @@ function persistBotState() {
 
     botStateUpdateQueue = update.catch(() => {});
     return update;
+}
+
+function transactGameState(updateState) {
+    const transaction = gameUpdateQueue.then(async () => {
+        const previousGameAccounts = botState.gameAccounts;
+        botState.gameAccounts = structuredClone(previousGameAccounts);
+
+        try {
+            const result = updateState();
+            await persistBotState();
+            return result;
+        } catch (error) {
+            botState.gameAccounts = previousGameAccounts;
+            throw error;
+        }
+    });
+
+    gameUpdateQueue = transaction.catch(() => {});
+    return transaction;
+}
+
+function getGameGroupAccounts(groupJid) {
+    if (!isRecord(botState.gameAccounts[groupJid])) botState.gameAccounts[groupJid] = {};
+    return botState.gameAccounts[groupJid];
+}
+
+function playCseGame(groupJid, userJid, displayName, game) {
+    if (!GAME_TYPES.includes(game)) throw new Error(`Unknown game type: ${game}`);
+    return transactGameState(() =>
+        playGameTurn(getGameGroupAccounts(groupJid), userJid, displayName, game)
+    );
+}
+
+function transferGamePoints(groupJid, senderJid, recipientJid, senderName, amount) {
+    return transactGameState(() =>
+        applyGamePointTransfer(
+            getGameGroupAccounts(groupJid),
+            senderJid,
+            recipientJid,
+            senderName,
+            amount
+        )
+    );
 }
 
 function getQuizParticipantId(key) {
@@ -475,6 +552,32 @@ function formatQuizScoreboard(scores) {
     return [
         '*Quiz Leaderboard*',
         ...leaders.map((leader, index) => `${index + 1}. ${leader.name} - ${leader.score} point${leader.score === 1 ? '' : 's'}`)
+    ].join('\n');
+}
+
+function formatCseGameMenu() {
+    return [
+        '🎮 *CSE Games*',
+        '• `CR hunt` — explore campus for useful study gear.',
+        '• `CR dig` — search for notes and lab finds.',
+        '• `CR wallet` — check your 🪙 CSE Coins and daily tries.',
+        '• `CR leaderboard` — see the top five 🪙 balances.',
+        '• `CR transfer @mention <amount>` — send 🪙 to a group member.',
+        '',
+        `🎯 In each group, you get ${GAME_DAILY_ATTEMPT_LIMIT} hunt tries and ${GAME_DAILY_ATTEMPT_LIMIT} dig tries per local day.`
+    ].join('\n');
+}
+
+function formatCseLeaderboard(accounts) {
+    const leaders = getGameLeaderboard(accounts);
+    if (!leaders.length) return '🪙 No CSE Coins have been earned in this group yet. Try `CR hunt` or `CR dig`.';
+    const rankEmojis = ['🥇', '🥈', '🥉'];
+
+    return [
+        '🏆 *CSE Game Leaderboard*',
+        ...leaders.map(([userJid, account], index) =>
+            `${rankEmojis[index] || `${index + 1}.`} ${account.name || `Classmate ${userJid.split('@')[0]}`} — ${account.balance} 🪙`
+        )
     ].join('\n');
 }
 
@@ -664,6 +767,10 @@ function formatCrHelp({ commands, images }, showModManual) {
             '• `CR rsrc <subject>` (open a subject resource)',
             '',
             '*Games*',
+            '• `CR games` (CSE hunt, dig, wallet, transfers)',
+            '• `CR hunt` or `CR dig` (10 tries per game per group each day)',
+            '• `CR wallet` or `CR leaderboard`',
+            '• `CR transfer @mention <amount>`',
             '• `CR quiz`',
             '• `CR score`',
             '',
@@ -689,6 +796,10 @@ function formatCrHelp({ commands, images }, showModManual) {
         '• `CR rsrc set <subject> <https://link>` (mod groups and bot admins)',
         '',
         '*Games*',
+        '• `CR games` (CSE hunt, dig, wallet, transfers)',
+        '• `CR hunt` or `CR dig` (10 tries per game per group each day)',
+        '• `CR wallet` or `CR leaderboard`',
+        '• `CR transfer @mention <amount>`',
         '• `CR quiz` (Discussion and mod groups)',
         '• `CR score` (Discussion and mod groups)',
         '',
@@ -751,7 +862,8 @@ function formatCrMenu({ commands, images, resources }) {
             : []),
         '',
         '*Fun*',
-        '• `CR meme` (fetch a random meme)'
+        '• `CR meme` (fetch a random GIF)',
+        '• `CR games` (CSE hunt, dig, wallet, and leaderboard)'
     ].join('\n');
 }
 
@@ -1573,6 +1685,185 @@ async function startBot() {
                         await sock.sendMessage(
                             senderJid,
                             { text: 'Could not fetch a GIF right now. GIPHY may be unavailable or over its request limit; try again later.' },
+                            { quoted: m }
+                        );
+                    }
+                    continue;
+                }
+
+                if (chainedCommand === 'game' || chainedCommand === 'games') {
+                    if (!isGroupJid(senderJid) || (!isAllowedGroup && !isModGroup)) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'CSE games are available only in the configured department and mod groups.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: formatCseGameMenu() },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+
+                if (GAME_TYPES.includes(chainedCommand)) {
+                    if (!isGroupJid(senderJid) || (!isAllowedGroup && !isModGroup)) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'CSE games are available only in the configured department and mod groups.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+                    if (!senderUserJid) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Could not identify your WhatsApp account, so this game turn was not counted.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    try {
+                        const result = await playCseGame(
+                            senderJid,
+                            senderUserJid,
+                            m.pushName,
+                            chainedCommand
+                        );
+                        const response = result.played
+                            ? `${result.outcome.emoji} ${result.outcome.text}\n+${result.outcome.points} 🪙 CSE Coins\n👛 Wallet: ${result.balance} 🪙\n🎯 ${GAME_DAILY_ATTEMPT_LIMIT - result.attempts} ${chainedCommand} tries left today.`
+                            : `🎯 You've used all ${GAME_DAILY_ATTEMPT_LIMIT} ${chainedCommand} tries for today.\n👛 Wallet: ${result.balance} 🪙`;
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: response },
+                            { quoted: m }
+                        );
+                    } catch (error) {
+                        console.error(`Could not run the CSE ${chainedCommand} game:`, error);
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Could not save your game result. Your turn was not counted; try again.' },
+                            { quoted: m }
+                        );
+                    }
+                    continue;
+                }
+
+                if (chainedCommand === 'wallet') {
+                    if (!isGroupJid(senderJid) || (!isAllowedGroup && !isModGroup)) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: '👛 CSE Coin wallets are available only in the configured department and mod groups.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+                    if (!senderUserJid) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Could not identify your WhatsApp account.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    const account = botState.gameAccounts[senderJid]?.[senderUserJid];
+                    const daily = account?.daily?.date === getLocalDayKey()
+                        ? account.daily
+                        : { hunt: 0, dig: 0 };
+                    await sock.sendMessage(
+                        senderJid,
+                        {
+                            text: [
+                                `👛 *${sanitizeGameName(m.pushName) || account?.name || 'Your'} CSE Coin wallet*`,
+                                `🪙 Balance: ${account?.balance || 0} CSE Coins.`,
+                                `🏹 Hunt tries today: ${daily.hunt}/${GAME_DAILY_ATTEMPT_LIMIT}.`,
+                                `⛏️ Dig tries today: ${daily.dig}/${GAME_DAILY_ATTEMPT_LIMIT}.`
+                            ].join('\n')
+                        },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+
+                if (chainedCommand === 'leaderboard') {
+                    if (!isGroupJid(senderJid) || (!isAllowedGroup && !isModGroup)) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: '🏆 The CSE Coin leaderboard is available only in the configured department and mod groups.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: formatCseLeaderboard(botState.gameAccounts[senderJid]) },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+
+                if (chainedCommand === 'transfer') {
+                    if (!isGroupJid(senderJid) || (!isAllowedGroup && !isModGroup)) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: '🪙 CSE Coin transfers are available only in the configured department and mod groups.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+                    if (!senderUserJid) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Could not identify your WhatsApp account.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    const transferMatch = text.match(/^\s*CR\s+transfer\s+(@\S+)\s+(\d+)\s*$/i);
+                    const mentionedJids = message.extendedTextMessage?.contextInfo?.mentionedJid || [];
+                    const recipientJid = transferMatch && mentionedJids.length === 1
+                        ? normalizeBlockedUserJid(mentionedJids[0])
+                        : undefined;
+                    const amount = transferMatch ? Number(transferMatch[2]) : 0;
+                    if (!recipientJid || !Number.isSafeInteger(amount) || amount <= 0) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Usage: `CR transfer @mention <positive whole-number amount>`. Mention exactly one group member.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    try {
+                        const result = await transferGamePoints(
+                            senderJid,
+                            senderUserJid,
+                            recipientJid,
+                            m.pushName,
+                            amount
+                        );
+                        const response = result.transferred
+                            ? `💸 Transferred ${amount} 🪙 CSE Coins to the member you mentioned.\n👛 Your balance is now ${result.senderBalance} 🪙.`
+                            : result.reason === 'self'
+                                ? '🚫 You cannot transfer CSE Coins to yourself.'
+                                : result.reason === 'insufficient'
+                                    ? `🚫 You only have ${result.balance} 🪙 CSE Coins, so you cannot transfer ${amount}.`
+                                    : '🚫 That transfer would exceed the recipient wallet limit.';
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: response },
+                            { quoted: m }
+                        );
+                    } catch (error) {
+                        console.error('Could not transfer CSE game points:', error);
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Could not save the transfer. No points were transferred; try again.' },
                             { quoted: m }
                         );
                     }

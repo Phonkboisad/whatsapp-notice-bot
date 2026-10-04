@@ -40,8 +40,8 @@ The bot must be a member of each group where it should answer. Changes to
 - `index.js`: bot logic, command handling, WhatsApp session bootstrap, and
   automation commands.
 - `bot-data.json`: message replies, images, resources, and quiz questions.
-- `bot-state.json`: runtime state such as quiz scores, trusted mod groups, and
-  bot admin settings.
+- `bot-state.json`: runtime state such as quiz scores, CSE game balances and
+  daily tries, trusted mod groups, and bot admin settings.
 - `auth_session/`: local Baileys session data and credentials.
 - `assets/`: images that the bot can send for replies like `examtime`.
 
@@ -70,6 +70,10 @@ The bot must be a member of each group where it should answer. Changes to
 | `CR rsrc` | Notice, Discussion, mod groups, admins | Browse resources and see which links are available |
 | `CR rsrc <subject>` | Notice, Discussion, mod groups, admins | Open a resource directly, such as `CR rsrc DS` |
 | `CR rsrc set <subject> <https://link>` | Mod groups, bot admins | Add a subject or replace its resource link |
+| `CR games` | Notice, Discussion, mod groups | Show CSE game commands |
+| `CR hunt`, `CR dig` | Notice, Discussion, mod groups | Play a short CSE-themed game (10 tries per game, per group, daily) |
+| `CR wallet`, `CR leaderboard` | Notice, Discussion, mod groups | Check game points or the group's top balances |
+| `CR transfer @mention <amount>` | Notice, Discussion, mod groups | Transfer fictional game points to a member |
 | `CR quiz`, `CR score` | Discussion, mod groups, admins | Start a quiz / view scores |
 | `CR update <name> <text>` | Mod groups, admins | Change an existing text reply |
 | `CR update examtime <text>` + image | Mod groups, admins | Update examtime text and image together |
@@ -147,6 +151,28 @@ CR update examtime Next exam: October 8 at 9:30 AM
 `CR update examtime` to replace only the image. The bot removes the previous
 image it saved for this command.
 
+### CSE Mini-Games
+
+Use `CR games` to see the game commands. Members can play `CR hunt` or `CR dig`
+up to 10 times each per group per day. Daily attempts reset at midnight
+according to the bot host's local time. Balances and attempt limits are
+separate in each group.
+
+Each game has 14 weighted, CSE-themed outcomes, including 10 additional
+outcomes for hunt and 10 for dig. Rewards are shown as **CSE Coins** (`🪙`).
+`CR wallet` shows your balance and remaining tries; `CR leaderboard` shows the
+group's top five balances. To give coins to another member, mention exactly one
+person:
+
+```text
+CR transfer @mention 25
+```
+
+Transfers require enough coins, cannot target yourself, and are saved with
+game state. CSE Coins are fictional and group-only: they cannot be wagered,
+bought, redeemed, or exchanged for money. Game balances and attempt counts are
+stored in `bot-state.json`, separately from quiz scores.
+
 ### Admins And Mod Groups
 
 The initial admin list is bootstrapped from `BOT_ADMIN_USER_JIDS` only when
@@ -181,8 +207,9 @@ node index.js
 
 For a VPS, run it with a process manager such as PM2 or systemd and keep the
 `BOT_ADMIN_USER_JIDS` environment variable in that service's configuration.
-The project has no automated test suite; check JavaScript syntax with:
+Run the automated game tests and check JavaScript syntax with:
 
 ```bash
+npm test
 node --check index.js
 ```
