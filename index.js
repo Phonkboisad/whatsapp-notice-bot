@@ -62,6 +62,45 @@ function getUsableResourceLink(resource) {
     }
 }
 
+function updateResourceLink(subject, link) {
+    const update = botDataUpdateQueue.then(async () => {
+        const data = JSON.parse(await readFile(BOT_DATA_FILE, 'utf8'));
+        if (!isRecord(data)) {
+            throw new Error('bot-data.json must contain a JSON object.');
+        }
+        if (data.resources === undefined) data.resources = [];
+        if (!Array.isArray(data.resources)) {
+            throw new Error('The resources property in bot-data.json must be an array.');
+        }
+
+        const existingResource = data.resources.find(resource =>
+            isRecord(resource) &&
+            typeof resource.subject === 'string' &&
+            resource.subject.trim().toLowerCase() === subject.toLowerCase()
+        );
+        const resourceSubject = existingResource?.subject.trim() || subject;
+        if (existingResource) {
+            existingResource.link = link;
+        } else {
+            data.resources.push({ subject: resourceSubject, link });
+        }
+
+        const temporaryFile = new URL('./bot-data.json.tmp', import.meta.url);
+        try {
+            await writeFile(temporaryFile, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+            await rename(temporaryFile, BOT_DATA_FILE);
+        } catch (error) {
+            await unlink(temporaryFile).catch(() => {});
+            throw error;
+        }
+
+        return { created: !existingResource, subject: resourceSubject };
+    });
+
+    botDataUpdateQueue = update.catch(() => {});
+    return update;
+}
+
 function normalizeBlockedUserJid(value) {
     if (typeof value !== 'string') return undefined;
 
@@ -480,6 +519,7 @@ function formatCrHelp({ commands, images }, showModManual) {
         '*Resources*',
         '• `CR rsrc` (browse resources)',
         '• `CR rsrc <subject>` (open a subject resource)',
+        '• `CR rsrc set <subject> <https://link>` (mod groups and bot admins)',
         '',
         '*Games*',
         '• `CR quiz` (Discussion and mod groups)',
@@ -666,7 +706,54 @@ async function startBot() {
                 continue;
             }
 
+            if (/^\s*CR\s+rsrc\s+set(?:\s|$)/i.test(text) && !canManageBot) {
+                await sock.sendMessage(
+                    senderJid,
+                    { text: 'Only configured mod groups and bot admins can add or update resource links.' },
+                    { quoted: m }
+                );
+                continue;
+            }
+
             if (canManageBot) {
+                if (/^\s*CR\s+rsrc\s+set(?:\s|$)/i.test(text)) {
+                    const resourceUpdateMatch = text.match(
+                        /^\s*CR\s+rsrc\s+set\s+([\s\S]+?)\s+(https?:\/\/\S+)\s*$/i
+                    );
+                    const subject = resourceUpdateMatch?.[1]
+                        .trim()
+                        .replace(/\s+/g, ' ');
+                    const link = resourceUpdateMatch
+                        ? getUsableResourceLink({ link: resourceUpdateMatch[2] })
+                        : undefined;
+
+                    if (!subject || subject.length > 80 || !link) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Usage: CR rsrc set <subject> <https://link> (subject must be 1-80 characters).' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    try {
+                        const result = await updateResourceLink(subject, link);
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: `${result.created ? 'Added' : 'Updated'} the ${result.subject} resource link.` },
+                            { quoted: m }
+                        );
+                    } catch (error) {
+                        console.error('Could not save the resource link:', error);
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Could not save the resource link. Check bot-data.json and try again.' },
+                            { quoted: m }
+                        );
+                    }
+                    continue;
+                }
+
                 if (/^\s*CR\s+admin(?:\s|$)/i.test(text)) {
                     const adminMatch = text.match(/^\s*CR\s+admin\s+(add|remove|list)(?:\s+(\S+))?\s*$/i);
                     if (!adminMatch || (adminMatch[1].toLowerCase() === 'list' && adminMatch[2]) ||

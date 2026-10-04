@@ -68,6 +68,7 @@ The bot must be a member of each group where it should answer. Changes to
 | `CR myid` | Anyone who can message the bot | Show your own WhatsApp JID |
 | `CR rsrc` | Notice, Discussion, mod groups, admins | Browse resources and see which links are available |
 | `CR rsrc <subject>` | Notice, Discussion, mod groups, admins | Open a resource directly, such as `CR rsrc DS` |
+| `CR rsrc set <subject> <https://link>` | Mod groups, bot admins | Add a subject or replace its resource link |
 | `CR quiz`, `CR score` | Discussion, mod groups, admins | Start a quiz / view scores |
 | `CR update <name> <text>` | Mod groups, admins | Change an existing text reply |
 | `CR update examtime <text>` + image | Mod groups, admins | Update examtime text and image together |
@@ -87,6 +88,19 @@ resource options. In the resource browser, choose a listed number or request a
 subject directly with `CR rsrc <subject>`; for example, `CR rsrc GEED`. Links
 that have not been added yet are marked "coming soon" and return a clear
 unavailable message rather than a placeholder link.
+
+In a configured mod group, add a link for an existing subject or create a new
+subject with:
+
+```text
+CR rsrc set DS https://drive.google.com/drive/folders/...
+CR rsrc set Operating Systems https://example.com/os-materials
+```
+
+The subject match is case-insensitive; setting an existing subject replaces
+its link, while a new subject is added to the resource browser. Only HTTP and
+HTTPS links are accepted. Bot admins can use this command from any chat the
+bot receives.
 
 ### Examtime Image
 
