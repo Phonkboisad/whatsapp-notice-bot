@@ -71,7 +71,7 @@ The bot must be a member of each group where it should answer. Changes to
 | `CR rsrc <subject>` | Notice, Discussion, mod groups, admins | Open a resource directly, such as `CR rsrc DS` |
 | `CR rsrc set <subject> <https://link>` | Mod groups, bot admins | Add a subject or replace its resource link |
 | `CR games` | Notice, Discussion, mod groups | Show CSE game commands |
-| `CR hunt`, `CR dig` | Notice, Discussion, mod groups | Play a short CSE-themed game (10 tries per game, per group, daily) |
+| `CR hunt`, `CR dig` | Notice, Discussion, mod groups | Play a short CSE-themed game (10 tries per member, per game, per group, daily) |
 | `CR wallet`, `CR leaderboard` | Notice, Discussion, mod groups | Check game points or the group's top balances |
 | `CR transfer @mention <amount>` | Notice, Discussion, mod groups | Transfer fictional game points to a member |
 | `CR quiz`, `CR score` | Discussion, mod groups, admins | Start a quiz / view scores |
@@ -88,11 +88,13 @@ The bot must be a member of each group where it should answer. Changes to
 Use `CR help` in the Discussion group for its smaller command guide. Use it in
 a mod group for the full manual, including admin-only commands.
 
-Use `CR menu` for a quick list of academic shortcuts, bus schedules, and
-resource options. In the resource browser, choose a listed number or request a
-subject directly with `CR rsrc <subject>`; for example, `CR rsrc GEED`. Links
-that have not been added yet are marked "coming soon" and return a clear
-unavailable message rather than a placeholder link.
+Use `CR menu` for academic shortcuts, bus schedules, study resources, CSE
+mini-games, quiz commands, and GIFs. `CR help` in the Discussion group presents
+these as separate sections, with a dedicated game guide. In the resource
+browser, choose a listed number or request a subject directly with
+`CR rsrc <subject>`; for example, `CR rsrc GEED`. Links that have not been
+added yet are marked "coming soon" and return a clear unavailable message
+rather than a placeholder link.
 
 In a configured mod group, add a link for an existing subject or create a new
 subject with:
@@ -153,13 +155,13 @@ image it saved for this command.
 
 ### CSE Mini-Games
 
-Use `CR games` to see the game commands. Members can play `CR hunt` or `CR dig`
-up to 10 times each per group per day. Daily attempts reset at midnight
+Use `CR games` to see the game guide. Each member can play `CR hunt` or `CR dig`
+up to 10 times each in each group per day. Daily attempts reset at midnight
 according to the bot host's local time. Balances and attempt limits are
 separate in each group.
 
 Each game has 14 weighted, CSE-themed outcomes, including 10 additional
-outcomes for hunt and 10 for dig. Rewards are shown as **CSE Coins** (`🪙`).
+outcomes for hunt and 10 for dig. Each outcome awards 0–60 **CSE Coins** (`🪙`).
 `CR wallet` shows your balance and remaining tries; `CR leaderboard` shows the
 group's top five balances. To give coins to another member, mention exactly one
 person:

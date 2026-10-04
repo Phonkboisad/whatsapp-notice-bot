@@ -557,14 +557,18 @@ function formatQuizScoreboard(scores) {
 
 function formatCseGameMenu() {
     return [
-        '🎮 *CSE Games*',
-        '• `CR hunt` — explore campus for useful study gear.',
-        '• `CR dig` — search for notes and lab finds.',
-        '• `CR wallet` — check your 🪙 CSE Coins and daily tries.',
-        '• `CR leaderboard` — see the top five 🪙 balances.',
-        '• `CR transfer @mention <amount>` — send 🪙 to a group member.',
+        '🎮 *CSE Mini-Games*',
+        '• `CR games` — show this game guide.',
+        '• `CR hunt` — explore campus for study gear and lab finds.',
+        '• `CR dig` — uncover notes, devices, and hidden CSE treasures.',
+        '• Each game has 14 weighted outcomes and rewards from 0–60 🪙 CSE Coins.',
+        `• Daily limit per member: ${GAME_DAILY_ATTEMPT_LIMIT} hunt and ${GAME_DAILY_ATTEMPT_LIMIT} dig tries in each group.`,
+        '• Tries reset at midnight using the bot host local time.',
+        '• `CR wallet` — check your coin balance and tries used today.',
+        '• `CR leaderboard` — see the top five balances in this group.',
+        '• `CR transfer @mention <amount>` — transfer coins to another member.',
         '',
-        `🎯 In each group, you get ${GAME_DAILY_ATTEMPT_LIMIT} hunt tries and ${GAME_DAILY_ATTEMPT_LIMIT} dig tries per local day.`
+        'Balances are separate per group. CSE Coins are fictional and have no cash value.'
     ].join('\n');
 }
 
@@ -752,29 +756,29 @@ function formatCrHelp({ commands, images }, showModManual) {
 
     if (!showModManual) {
         return [
-            '*Discussion group command manual*',
+            '📖 *Discussion Group Command Guide*',
             '',
-            '*General*',
+            '*Quick commands*',
             '• `CR` (default reply)',
             '• `CR help`',
-            '• `CR menu` (quick access to schedules, bus info, and resources)',
-            '• `CR meme` (post a random meme)',
+            '• `CR menu` (academic info, bus schedules, resources, and games)',
             '• `CR myid` (show your WhatsApp JID)',
             textCommands,
             '',
-            '*Resources*',
+            '📚 *Study resources*',
             '• `CR rsrc` (browse resources)',
             '• `CR rsrc <subject>` (open a subject resource)',
             '',
-            '*Games*',
-            '• `CR games` (CSE hunt, dig, wallet, transfers)',
-            '• `CR hunt` or `CR dig` (10 tries per game per group each day)',
-            '• `CR wallet` or `CR leaderboard`',
-            '• `CR transfer @mention <amount>`',
+            formatCseGameMenu(),
+            '',
+            '🧠 *Quiz*',
             '• `CR quiz`',
             '• `CR score`',
             '',
-            '*Schedule images*',
+            '🎞️ *GIFs and fun*',
+            '• `CR meme` (fetch a G-rated GIF)',
+            '',
+            '🗓️ *Schedule images*',
             imageCommands
         ].filter(Boolean).join('\n');
     }
@@ -785,23 +789,23 @@ function formatCrHelp({ commands, images }, showModManual) {
         '*General*',
         '• `CR` (default reply)',
         '• `CR help`',
-        '• `CR menu` (quick access to schedules, bus info, and resources)',
-        '• `CR meme` (post a random meme)',
+        '• `CR menu` (academic info, bus schedules, resources, and games)',
         '• `CR myid` (show your WhatsApp JID)',
         textCommands,
         '',
-        '*Resources*',
+        '📚 *Resources*',
         '• `CR rsrc` (browse resources)',
         '• `CR rsrc <subject>` (open a subject resource)',
         '• `CR rsrc set <subject> <https://link>` (mod groups and bot admins)',
         '',
-        '*Games*',
-        '• `CR games` (CSE hunt, dig, wallet, transfers)',
-        '• `CR hunt` or `CR dig` (10 tries per game per group each day)',
-        '• `CR wallet` or `CR leaderboard`',
-        '• `CR transfer @mention <amount>`',
+        formatCseGameMenu(),
+        '',
+        '🧠 *Quiz*',
         '• `CR quiz` (Discussion and mod groups)',
         '• `CR score` (Discussion and mod groups)',
+        '',
+        '🎞️ *GIFs and fun*',
+        '• `CR meme` (fetch a G-rated GIF)',
         '',
         '*Mod group members*',
         '• `CR mod list`',
@@ -839,19 +843,19 @@ function formatCrMenu({ commands, images, resources }) {
         .map(resource => resource.subject);
 
     return [
-        '*CSE quick menu*',
+        '🧭 *CSE Quick Menu*',
         '',
-        '*Academic information*',
+        '🎓 *Academic information*',
         ...(academicCommands.length
             ? academicCommands.map(command => `• \`CR ${command}\``)
             : ['• No academic shortcuts are configured yet.']),
         '',
-        '*Bus schedules*',
+        '🚌 *Bus schedules*',
         ...(busCommands.length
             ? busCommands.map(command => `• \`CR ${command}\``)
             : ['• No bus schedule shortcuts are configured yet.']),
         '',
-        '*Study resources*',
+        '📚 *Study resources*',
         '• Browse: `CR rsrc`',
         '• Open a subject directly: `CR rsrc <subject>` (example: `CR rsrc DS`)',
         availableResources.length
@@ -861,9 +865,14 @@ function formatCrMenu({ commands, images, resources }) {
             ? [`• Coming soon: ${comingSoonResources.join(', ')}`]
             : []),
         '',
-        '*Fun*',
-        '• `CR meme` (fetch a random GIF)',
-        '• `CR games` (CSE hunt, dig, wallet, and leaderboard)'
+        formatCseGameMenu(),
+        '',
+        '🧠 *Quiz*',
+        '• `CR quiz` (start a quiz in the Discussion group)',
+        '• `CR score` (view quiz scores)',
+        '',
+        '🎞️ *GIFs and fun*',
+        '• `CR meme` (fetch a G-rated GIF)'
     ].join('\n');
 }
 
