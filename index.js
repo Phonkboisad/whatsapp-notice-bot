@@ -26,6 +26,14 @@ const QUIZ_DURATION_MS = 30_000;
 const QUIZ_COOLDOWN_MS = 60_000;
 const SHELL_COMMAND_TIMEOUT_MS = 20_000;
 const SHELL_COMMAND_MAX_OUTPUT_LENGTH = 5_000;
+const GIPHY_API_KEY_IN_CODE = 'PASTE_YOUR_GIPHY_API_KEY_HERE';
+const GIPHY_API_KEY = process.env.GIPHY_API_KEY?.trim() ||
+    (GIPHY_API_KEY_IN_CODE === 'yzSuVH92Rx7OGiIlBlLYcxaD23LvPJis' ? '' : GIPHY_API_KEY_IN_CODE);
+const GIPHY_TAG = process.env.GIPHY_TAG?.trim() || 'meme';
+const GIPHY_REQUEST_TIMEOUT_MS = 15_000;
+const GIPHY_API_MAX_RESPONSE_BYTES = 64 * 1024;
+const GIPHY_MEDIA_MAX_BYTES = 8 * 1024 * 1024;
+const GIPHY_MAX_REDIRECTS = 3;
 let repliesEnabled = true;
 let botDataUpdateQueue = Promise.resolve();
 let botStateUpdateQueue = Promise.resolve();
@@ -47,6 +55,163 @@ function isRecord(value) {
 
 function isGroupJid(value) {
     return typeof value === 'string' && /^\d+(?:-\d+)?@g\.us$/.test(value);
+}
+
+async function fetchHttpsResponse(urlValue, options, sameOriginRedirectsOnly = false) {
+    const initialUrl = new URL(urlValue);
+    let currentUrl = initialUrl;
+
+    for (let redirectCount = 0; redirectCount <= GIPHY_MAX_REDIRECTS; redirectCount++) {
+        if (
+            currentUrl.protocol !== 'https:' ||
+            currentUrl.username ||
+            currentUrl.password
+        ) {
+            throw new Error('GIPHY and media URLs must use HTTPS without credentials.');
+        }
+
+        const headers = new Headers(options.headers);
+        if (currentUrl.origin !== initialUrl.origin) headers.delete('authorization');
+        const response = await fetch(currentUrl, {
+            ...options,
+            headers,
+            redirect: 'manual'
+        });
+        if (![301, 302, 303, 307, 308].includes(response.status)) return response;
+
+        const location = response.headers.get('location');
+        await response.body?.cancel();
+        if (!location || redirectCount === GIPHY_MAX_REDIRECTS) {
+            throw new Error('GIPHY returned an invalid or excessive redirect.');
+        }
+        const nextUrl = new URL(location, currentUrl);
+        if (sameOriginRedirectsOnly && nextUrl.origin !== initialUrl.origin) {
+            throw new Error('GIPHY API redirected to an unexpected origin.');
+        }
+        currentUrl = nextUrl;
+    }
+
+    throw new Error('GIPHY returned an excessive redirect.');
+}
+
+async function readResponseBuffer(response, maxBytes) {
+    const contentLength = Number(response.headers.get('content-length'));
+    if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+        throw new Error(`GIPHY response exceeds the ${maxBytes}-byte size limit.`);
+    }
+
+    if (!response.body) throw new Error('GIPHY returned an empty response.');
+    const reader = response.body.getReader();
+    const chunks = [];
+    let totalBytes = 0;
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            totalBytes += value.byteLength;
+            if (totalBytes > maxBytes) {
+                await reader.cancel();
+                throw new Error(`GIPHY response exceeds the ${maxBytes}-byte size limit.`);
+            }
+            chunks.push(Buffer.from(value));
+        }
+    } finally {
+        reader.releaseLock();
+    }
+
+    if (!totalBytes) throw new Error('GIPHY returned an empty response.');
+    return Buffer.concat(chunks, totalBytes);
+}
+
+function isValidMp4Buffer(buffer) {
+    return buffer.length >= 12 && buffer.toString('ascii', 4, 8) === 'ftyp';
+}
+
+async function fetchRandomMeme() {
+    if (!GIPHY_API_KEY) throw new Error('GIPHY_API_KEY is not configured.');
+
+    const apiUrl = new URL('https://api.giphy.com/v1/gifs/random');
+    apiUrl.searchParams.set('api_key', GIPHY_API_KEY);
+    apiUrl.searchParams.set('tag', GIPHY_TAG);
+    apiUrl.searchParams.set('rating', 'g');
+    apiUrl.searchParams.set('bundle', 'messaging_non_clips');
+
+    const signal = AbortSignal.timeout(GIPHY_REQUEST_TIMEOUT_MS);
+    const apiResponse = await fetchHttpsResponse(
+        apiUrl,
+        { headers: { accept: 'application/json' }, signal },
+        true
+    );
+    if (!apiResponse.ok) {
+        throw new Error(`GIPHY API returned HTTP ${apiResponse.status}.`);
+    }
+    const apiContentType = apiResponse.headers.get('content-type')
+        ?.split(';', 1)[0]
+        .trim()
+        .toLowerCase();
+    if (
+        apiContentType !== 'application/json' &&
+        !/^application\/[^/;]+\+json$/.test(apiContentType || '')
+    ) {
+        throw new Error('GIPHY API did not return JSON.');
+    }
+
+    let giphyData;
+    const apiBody = await readResponseBuffer(apiResponse, GIPHY_API_MAX_RESPONSE_BYTES);
+    try {
+        giphyData = JSON.parse(apiBody.toString('utf8'));
+    } catch (error) {
+        throw new Error('GIPHY API returned invalid JSON.', { cause: error });
+    }
+    if (!isRecord(giphyData) || !isRecord(giphyData.data) || !isRecord(giphyData.data.images)) {
+        throw new Error('GIPHY API response did not contain GIF renditions.');
+    }
+
+    const gifVideoUrl = giphyData.data.images.fixed_height?.mp4 ||
+        giphyData.data.images.original_mp4?.mp4;
+    if (typeof gifVideoUrl !== 'string' || !gifVideoUrl.trim()) {
+        throw new Error('GIPHY did not return an MP4 rendition for this GIF.');
+    }
+
+    let videoUrl;
+    try {
+        videoUrl = new URL(gifVideoUrl);
+    } catch {
+        throw new Error('GIPHY returned an invalid MP4 URL.');
+    }
+    if (videoUrl.protocol !== 'https:' || videoUrl.username || videoUrl.password) {
+        throw new Error('GIPHY MP4 URLs must use HTTPS and must not contain credentials.');
+    }
+
+    const videoResponse = await fetchHttpsResponse(videoUrl, {
+        headers: { accept: 'video/mp4' },
+        signal
+    });
+    if (!videoResponse.ok) {
+        throw new Error(`GIPHY media host returned HTTP ${videoResponse.status}.`);
+    }
+
+    const mimeType = videoResponse.headers.get('content-type')
+        ?.split(';', 1)[0]
+        .trim()
+        .toLowerCase();
+    if (mimeType !== 'video/mp4') {
+        throw new Error('GIPHY rendition must be an MP4 video.');
+    }
+
+    const video = await readResponseBuffer(videoResponse, GIPHY_MEDIA_MAX_BYTES);
+    if (!isValidMp4Buffer(video)) {
+        throw new Error('GIPHY response content is not a valid MP4 file.');
+    }
+
+    return {
+        video,
+        caption: typeof giphyData.data.title === 'string'
+            ? [giphyData.data.title.trim(), 'via GIPHY'].filter(Boolean).join('\n').slice(0, 1000)
+            : 'via GIPHY'
+    };
 }
 
 function getUsableResourceLink(resource) {
@@ -490,6 +655,7 @@ function formatCrHelp({ commands, images }, showModManual) {
             '• `CR` (default reply)',
             '• `CR help`',
             '• `CR menu` (quick access to schedules, bus info, and resources)',
+            '• `CR meme` (post a random meme)',
             '• `CR myid` (show your WhatsApp JID)',
             textCommands,
             '',
@@ -513,6 +679,7 @@ function formatCrHelp({ commands, images }, showModManual) {
         '• `CR` (default reply)',
         '• `CR help`',
         '• `CR menu` (quick access to schedules, bus info, and resources)',
+        '• `CR meme` (post a random meme)',
         '• `CR myid` (show your WhatsApp JID)',
         textCommands,
         '',
@@ -581,7 +748,10 @@ function formatCrMenu({ commands, images, resources }) {
             : '• No resource links are available yet.',
         ...(comingSoonResources.length
             ? [`• Coming soon: ${comingSoonResources.join(', ')}`]
-            : [])
+            : []),
+        '',
+        '*Fun*',
+        '• `CR meme` (fetch a random meme)'
     ].join('\n');
 }
 
@@ -1373,6 +1543,39 @@ async function startBot() {
                         { text: formatCrMenu({ ...crReplies, resources }) },
                         { quoted: m }
                     );
+                    continue;
+                }
+
+                if (chainedCommand === 'meme') {
+                    if (!GIPHY_API_KEY) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'The GIPHY meme feature is not configured yet. Ask a bot admin to set GIPHY_API_KEY.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    try {
+                        const meme = await fetchRandomMeme();
+                        await sock.sendMessage(
+                            senderJid,
+                            {
+                                video: meme.video,
+                                mimetype: 'video/mp4',
+                                gifPlayback: true,
+                                caption: meme.caption
+                            },
+                            { quoted: m }
+                        );
+                    } catch (error) {
+                        console.error('Could not fetch or send a GIPHY GIF:', error.message);
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Could not fetch a GIF right now. GIPHY may be unavailable or over its request limit; try again later.' },
+                            { quoted: m }
+                        );
+                    }
                     continue;
                 }
 

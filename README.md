@@ -65,6 +65,7 @@ The bot must be a member of each group where it should answer. Changes to
 | `CR menu` | Notice, Discussion, mod groups, admins | Show academic, bus, and resource shortcuts |
 | `CR <name>` | Notice, Discussion, mod groups, admins | Send a configured text or image reply |
 | `CR help` | Supported groups | Show the short guide or, in a mod group, the full manual |
+| `CR meme` | Notice, Discussion, mod groups, admins | Send a random G-rated GIPHY GIF |
 | `CR myid` | Anyone who can message the bot | Show your own WhatsApp JID |
 | `CR rsrc` | Notice, Discussion, mod groups, admins | Browse resources and see which links are available |
 | `CR rsrc <subject>` | Notice, Discussion, mod groups, admins | Open a resource directly, such as `CR rsrc DS` |
@@ -101,6 +102,37 @@ The subject match is case-insensitive; setting an existing subject replaces
 its link, while a new subject is added to the resource browser. Only HTTP and
 HTTPS links are accepted. Bot admins can use this command from any chat the
 bot receives.
+
+### Random GIFs via GIPHY
+
+`CR meme` fetches a random GIF tagged `meme` from [GIPHY's Random
+endpoint](https://developers.giphy.com/docs/api/endpoint/#random) and sends its
+MP4 rendition as an animated GIF. Results are restricted to G-rated content.
+Create an API key in the [GIPHY Developers
+Dashboard](https://developers.giphy.com/dashboard/).
+
+To add the key directly in the code, open `index.js` and find this line near
+the top of the file:
+
+```js
+const GIPHY_API_KEY_IN_CODE = 'PASTE_YOUR_GIPHY_API_KEY_HERE';
+```
+
+Replace the placeholder with your key, keeping the quotes, then save and
+restart the bot. Alternatively, set `GIPHY_API_KEY` in the bot process
+environment; that value takes priority over the in-code key. `GIPHY_TAG` is
+also optional and defaults to `meme`.
+
+**Security:** a real key in `index.js` can be exposed if you commit or share the
+file. Keep your key private and do not commit the edited file with the real key;
+using a process environment variable is safer, especially for shared
+repositories and hosted services. This project does not load `.env` files.
+
+The bot has no local cooldown, so repeated requests use the API key's GIPHY
+quota. If your key is on GIPHY's 100-requests-per-hour beta tier, that quota is
+shared by all group members; check the developer dashboard for your key's
+current limit. Requests have a 15-second timeout, and MP4 downloads are limited
+to 8 MB.
 
 ### Examtime Image
 
