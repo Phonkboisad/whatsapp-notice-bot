@@ -49,6 +49,19 @@ function isGroupJid(value) {
     return typeof value === 'string' && /^\d+(?:-\d+)?@g\.us$/.test(value);
 }
 
+function getUsableResourceLink(resource) {
+    if (typeof resource?.link !== 'string') return undefined;
+
+    try {
+        const url = new URL(resource.link.trim());
+        return url.protocol === 'http:' || url.protocol === 'https:'
+            ? url.toString()
+            : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
 function normalizeBlockedUserJid(value) {
     if (typeof value !== 'string') return undefined;
 
@@ -437,11 +450,13 @@ function formatCrHelp({ commands, images }, showModManual) {
             '*General*',
             '• `CR` (default reply)',
             '• `CR help`',
+            '• `CR menu` (quick access to schedules, bus info, and resources)',
             '• `CR myid` (show your WhatsApp JID)',
             textCommands,
             '',
             '*Resources*',
-            '• `CR rsrc`',
+            '• `CR rsrc` (browse resources)',
+            '• `CR rsrc <subject>` (open a subject resource)',
             '',
             '*Games*',
             '• `CR quiz`',
@@ -458,11 +473,13 @@ function formatCrHelp({ commands, images }, showModManual) {
         '*General*',
         '• `CR` (default reply)',
         '• `CR help`',
+        '• `CR menu` (quick access to schedules, bus info, and resources)',
         '• `CR myid` (show your WhatsApp JID)',
         textCommands,
         '',
         '*Resources*',
-        '• `CR rsrc`',
+        '• `CR rsrc` (browse resources)',
+        '• `CR rsrc <subject>` (open a subject resource)',
         '',
         '*Games*',
         '• `CR quiz` (Discussion and mod groups)',
@@ -491,14 +508,61 @@ function formatCrHelp({ commands, images }, showModManual) {
     ].filter(Boolean).join('\n');
 }
 
-function formatResourceMenu(resources) {
-    const lines = resources.map((resource, index) => `• ${index}. ${resource.subject}`);
+function formatCrMenu({ commands, images, resources }) {
+    const academicCommands = Object.keys(commands)
+        .filter(command => !/^bus-/i.test(command));
+    const busCommands = Object.keys(images)
+        .filter(command => /^bus-/i.test(command));
+    const availableResources = resources
+        .filter(resource => getUsableResourceLink(resource))
+        .map(resource => resource.subject);
+    const comingSoonResources = resources
+        .filter(resource => !getUsableResourceLink(resource))
+        .map(resource => resource.subject);
+
     return [
-        '*Available resources*',
+        '*CSE quick menu*',
+        '',
+        '*Academic information*',
+        ...(academicCommands.length
+            ? academicCommands.map(command => `• \`CR ${command}\``)
+            : ['• No academic shortcuts are configured yet.']),
+        '',
+        '*Bus schedules*',
+        ...(busCommands.length
+            ? busCommands.map(command => `• \`CR ${command}\``)
+            : ['• No bus schedule shortcuts are configured yet.']),
+        '',
+        '*Study resources*',
+        '• Browse: `CR rsrc`',
+        '• Open a subject directly: `CR rsrc <subject>` (example: `CR rsrc DS`)',
+        availableResources.length
+            ? `• Links available: ${availableResources.join(', ')}`
+            : '• No resource links are available yet.',
+        ...(comingSoonResources.length
+            ? [`• Coming soon: ${comingSoonResources.join(', ')}`]
+            : [])
+    ].join('\n');
+}
+
+function formatResourceMenu(resources) {
+    const lines = resources.map((resource, index) => {
+        const status = getUsableResourceLink(resource) ? 'available' : 'coming soon';
+        return `• ${index}. ${resource.subject} — ${status}`;
+    });
+    return [
+        '*Study resources*',
         ...lines,
         '',
-        'Reply with the number of the subject you want.'
+        'Reply with a number to open a resource, or use `CR rsrc <subject>`.'
     ].join('\n');
+}
+
+function formatResourceReply(resource) {
+    const link = getUsableResourceLink(resource);
+    return link
+        ? `${resource.subject}: ${link}`
+        : `${resource.subject} is not available yet. Ask a mod to add the resource link.`;
 }
 
 async function startBot() {
@@ -1169,26 +1233,29 @@ async function startBot() {
 
             const pendingResources = resourceSelectionState.get(senderJid);
             if (pendingResources) {
-                const choice = Number(text.trim());
+                const choiceText = text.trim();
+                const choice = /^\d+$/.test(choiceText) ? Number(choiceText) : -1;
 
                 if (Number.isInteger(choice) && choice >= 0 && choice < pendingResources.length) {
                     const selected = pendingResources[choice];
                     await sock.sendMessage(
                         senderJid,
-                        { text: `${selected.subject}: ${selected.link}` },
+                        { text: formatResourceReply(selected) },
                         { quoted: m }
                     );
                     resourceSelectionState.delete(senderJid);
                     continue;
                 }
 
-                await sock.sendMessage(
-                    senderJid,
-                    { text: 'Invalid choice. Please reply with a valid number from the resource list.' },
-                    { quoted: m }
-                );
                 resourceSelectionState.delete(senderJid);
-                continue;
+                if (!/^\s*CR\b/i.test(text)) {
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: 'Invalid choice. Please reply with a valid number from the resource list.' },
+                        { quoted: m }
+                    );
+                    continue;
+                }
             }
 
             const commandMatch = text.match(/\bCR\b(?:\s+([a-z]+(?:-[a-z]+)*))?/i);
@@ -1203,6 +1270,20 @@ async function startBot() {
                             crReplies,
                             senderJid !== DISCUSSION_GROUP_JID && (isModGroup || isBotAdmin)
                         ) },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+
+                if (chainedCommand === 'menu') {
+                    const resources = crReplies.resources.filter(
+                        resource => isRecord(resource) &&
+                            typeof resource.subject === 'string' &&
+                            resource.subject.trim()
+                    );
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: formatCrMenu({ ...crReplies, resources }) },
                         { quoted: m }
                     );
                     continue;
@@ -1285,7 +1366,12 @@ async function startBot() {
                 }
 
                 if (chainedCommand === 'rsrc') {
-                    if (!crReplies.resources.length) {
+                    const resources = crReplies.resources.filter(
+                        resource => isRecord(resource) &&
+                            typeof resource.subject === 'string' &&
+                            resource.subject.trim()
+                    );
+                    if (!resources.length) {
                         await sock.sendMessage(
                             senderJid,
                             { text: 'No resources available right now.' },
@@ -1294,10 +1380,29 @@ async function startBot() {
                         continue;
                     }
 
-                    resourceSelectionState.set(senderJid, crReplies.resources);
+                    const requestedSubject = text.match(
+                        /^\s*CR\s+rsrc(?:\s+([\s\S]*?))?\s*$/i
+                    )?.[1]?.trim();
+                    if (requestedSubject) {
+                        const requestedResource = resources.find(
+                            resource => resource.subject.trim().toLowerCase() === requestedSubject.toLowerCase()
+                        );
+                        await sock.sendMessage(
+                            senderJid,
+                            {
+                                text: requestedResource
+                                    ? formatResourceReply(requestedResource)
+                                    : `I couldn't find "${requestedSubject}". Browse subjects with \`CR rsrc\`.`
+                            },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    resourceSelectionState.set(senderJid, resources);
                     await sock.sendMessage(
                         senderJid,
-                        { text: formatResourceMenu(crReplies.resources) },
+                        { text: formatResourceMenu(resources) },
                         { quoted: m }
                     );
                     continue;

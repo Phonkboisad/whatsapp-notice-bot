@@ -62,10 +62,12 @@ The bot must be a member of each group where it should answer. Changes to
 | Command | Access | Purpose |
 | --- | --- | --- |
 | `CR` | Notice, Discussion, mod groups, admins | Send the default reply |
+| `CR menu` | Notice, Discussion, mod groups, admins | Show academic, bus, and resource shortcuts |
 | `CR <name>` | Notice, Discussion, mod groups, admins | Send a configured text or image reply |
 | `CR help` | Supported groups | Show the short guide or, in a mod group, the full manual |
 | `CR myid` | Anyone who can message the bot | Show your own WhatsApp JID |
-| `CR rsrc` | Notice, Discussion, mod groups, admins | Browse configured resources |
+| `CR rsrc` | Notice, Discussion, mod groups, admins | Browse resources and see which links are available |
+| `CR rsrc <subject>` | Notice, Discussion, mod groups, admins | Open a resource directly, such as `CR rsrc DS` |
 | `CR quiz`, `CR score` | Discussion, mod groups, admins | Start a quiz / view scores |
 | `CR update <name> <text>` | Mod groups, admins | Change an existing text reply |
 | `CR update examtime <text>` + image | Mod groups, admins | Update examtime text and image together |
@@ -79,6 +81,12 @@ The bot must be a member of each group where it should answer. Changes to
 
 Use `CR help` in the Discussion group for its smaller command guide. Use it in
 a mod group for the full manual, including admin-only commands.
+
+Use `CR menu` for a quick list of academic shortcuts, bus schedules, and
+resource options. In the resource browser, choose a listed number or request a
+subject directly with `CR rsrc <subject>`; for example, `CR rsrc GEED`. Links
+that have not been added yet are marked "coming soon" and return a clear
+unavailable message rather than a placeholder link.
 
 ### Examtime Image
 
