@@ -62,6 +62,7 @@ The bot must be a member of each group where it should answer. Changes to
 | Command | Access | Purpose |
 | --- | --- | --- |
 | `CR` | Notice, Discussion, mod groups, admins | Send the default reply |
+| `.cr <request>` | Chats the bot can receive messages from | Ask Hermes to select and run one allowed CR command |
 | `CR menu` | Notice, Discussion, mod groups, admins | Show academic, bus, and resource shortcuts |
 | `CR <name>` | Notice, Discussion, mod groups, admins | Send a configured text or image reply |
 | `CR help` | Supported groups | Show the short guide or, in a mod group, the full manual |
@@ -87,6 +88,33 @@ The bot must be a member of each group where it should answer. Changes to
 
 Use `CR help` in the Discussion group for its smaller command guide. Use it in
 a mod group for the full manual, including admin-only commands.
+
+### Hermes natural-language commands
+
+Set `HERMES_API_URL`, `HERMES_API_KEY`, and `HERMES_MODEL` in the bot process
+environment to enable requests such as:
+
+```text
+.cr give the class routine
+```
+
+The integration expects an OpenAI-compatible Chat Completions endpoint, with
+`HERMES_API_URL` set to its full URL (for example,
+`https://your-hermes-host/v1/chat/completions`). The bot sends a bearer token
+and expects `choices[0].message.content` to contain exactly one JSON object:
+`{"command":"routine"}` or `{"command":null}`. Hermes selects from a strict
+allowlist built from configured reply/image command names and supported
+non-admin commands. The bot rejects other selections and routes accepted
+commands through its regular handler, preserving sender and group permissions.
+Hermes cannot select privileged commands, shell commands, or commands that
+require arbitrary arguments (such as point transfers). If no command matches,
+the bot says so rather than executing generated text.
+
+The natural-language request is sent to the configured Hermes API. Do not
+include private information in these requests. The configured `routine` reply
+in `bot-data.json` is a placeholder; replace it with the class routine before
+using this example. The integration makes outbound requests only and does not
+open a webhook endpoint on the bot.
 
 Use `CR menu` for academic shortcuts, bus schedules, study resources, CSE
 mini-games, quiz commands, and GIFs. `CR help` in the Discussion group presents

@@ -20,6 +20,11 @@ import {
     sanitizeGameName,
     transferGamePoints as applyGamePointTransfer
 } from './cse-game.js';
+import {
+    getHermesAllowedCommands,
+    getHermesConfig,
+    resolveHermesCommand
+} from './hermes-agent.js';
 
 const NOTICE_GROUP_JID = '120363400837000305@g.us';
 const DISCUSSION_GROUP_JID = '120363406812832614@g.us';
@@ -758,6 +763,7 @@ function formatCrHelp({ commands, images }, showModManual) {
             '*Quick commands*',
             '• `CR` (default reply)',
             '• `CR help`',
+            '• `.cr <request>` (use a natural-language request for a supported command)',
             '• `CR menu` (academic info, bus schedules, resources, and games)',
             '• `CR myid` (show your WhatsApp JID)',
             textCommands,
@@ -786,6 +792,7 @@ function formatCrHelp({ commands, images }, showModManual) {
         '*General*',
         '• `CR` (default reply)',
         '• `CR help`',
+        '• `.cr <request>` (use a natural-language request for a supported command)',
         '• `CR menu` (academic info, bus schedules, resources, and games)',
         '• `CR myid` (show your WhatsApp JID)',
         textCommands,
@@ -948,7 +955,7 @@ async function startBot() {
             const senderJid = m.key.remoteJid;
 
             const message = normalizeMessageContent(m.message) || m.message;
-            const text =
+            let text =
                 message.conversation ||
                 message.extendedTextMessage?.text ||
                 message.imageMessage?.caption ||
@@ -962,6 +969,7 @@ async function startBot() {
             const isBotAdmin = senderUserJid && botState.botAdminUserJids.includes(senderUserJid);
             const canManageBot = isModGroup || isBotAdmin;
             const isBlockedFromCr = !isBotAdmin && senderUserJid && botState.blockedCrUserJids.includes(senderUserJid);
+            const isHermesIntent = /^\s*\.cr(?:\s|$)/i.test(text);
 
             if (/^\s*CR\s+myid\s*$/i.test(text)) {
                 await sock.sendMessage(
@@ -975,7 +983,7 @@ async function startBot() {
             if (
                 isBlockedFromCr &&
                 (isModGroup || senderJid === DISCUSSION_GROUP_JID) &&
-                /\bCR\b/i.test(text)
+                (/\bCR\b/i.test(text) || isHermesIntent)
             ) {
                 await sock.sendMessage(
                     senderJid,
@@ -983,6 +991,48 @@ async function startBot() {
                     { quoted: m }
                 );
                 continue;
+            }
+
+            if (isHermesIntent) {
+                const request = text.replace(/^\s*\.cr(?:\s+|$)/i, '').trim();
+                if (!request) {
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: 'Usage: `.cr <what you want the bot to do>`.' },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+
+                try {
+                    const crReplies = await loadCrReplies();
+                    const allowedCommands = getHermesAllowedCommands(
+                        Object.keys(crReplies.commands),
+                        Object.keys(crReplies.images)
+                    );
+                    const command = await resolveHermesCommand({
+                        ...getHermesConfig(),
+                        request,
+                        allowedCommands
+                    });
+                    if (!command) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'I could not match that request to a supported CR command.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+                    text = `CR ${command}`;
+                } catch (error) {
+                    console.error('Could not resolve a .cr request with Hermes:', error);
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: 'I could not process that request right now. Ask a bot admin to check the Hermes API configuration.' },
+                        { quoted: m }
+                    );
+                    continue;
+                }
             }
 
             if (/^\s*CR\s+admin(?:\s|$)/i.test(text) && !isBotAdmin) {
