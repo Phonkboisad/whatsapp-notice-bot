@@ -33,7 +33,6 @@ const EXAMTIME_IMAGE_EXTENSIONS = {
     'image/webp': 'webp'
 };
 const QUIZ_DURATION_MS = 30_000;
-const QUIZ_COOLDOWN_MS = 60_000;
 const SHELL_COMMAND_TIMEOUT_MS = 20_000;
 const SHELL_COMMAND_MAX_OUTPUT_LENGTH = 5_000;
 const GIPHY_API_KEY_IN_CODE = 'PASTE_YOUR_GIPHY_API_KEY_HERE';
@@ -58,7 +57,6 @@ let botState = {
 };
 const resourceSelectionState = new Map();
 const activeQuizRounds = new Map();
-const quizCooldowns = new Map();
 let gameUpdateQueue = Promise.resolve();
 
 function isRecord(value) {
@@ -605,7 +603,6 @@ async function finishQuizRound(sock, groupJid, round) {
     if (activeQuizRounds.get(groupJid) !== round) return;
 
     activeQuizRounds.delete(groupJid);
-    quizCooldowns.set(groupJid, Date.now() + QUIZ_COOLDOWN_MS);
 
     const correctPlayers = [...round.answers.values()]
         .filter(answer => answer.correct)
@@ -1893,17 +1890,6 @@ async function startBot() {
                         await sock.sendMessage(
                             senderJid,
                             { text: 'A quiz is already in progress. Reply with 1, 2, or 3.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-
-                    const cooldownUntil = quizCooldowns.get(senderJid) || 0;
-                    if (cooldownUntil > Date.now()) {
-                        const secondsRemaining = Math.ceil((cooldownUntil - Date.now()) / 1000);
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: `Please wait ${secondsRemaining} more seconds before starting another quiz.` },
                             { quoted: m }
                         );
                         continue;
