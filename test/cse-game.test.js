@@ -46,15 +46,15 @@ test('game outcomes award their configured points and sanitize member names', ()
     assert.throws(() => playGameTurn(accounts, '123456@s.whatsapp.net', '', 'unknown', firstDay), /Unknown game type/);
 });
 
-test('hunt and dig each have ten extra emoji-tagged weighted outcomes', () => {
+test('hunt and dig each have weighted outcomes including occasional penalties', () => {
     for (const game of ['hunt', 'dig']) {
         const outcomes = getGameOutcomes(game);
         assert.equal(outcomes.length, 14);
+        assert.ok(outcomes.some(outcome => outcome.points < 0));
         assert.ok(outcomes.every(outcome =>
             typeof outcome.text === 'string' &&
             /\p{Extended_Pictographic}/u.test(outcome.emoji) &&
             Number.isSafeInteger(outcome.points) &&
-            outcome.points >= 0 &&
             Number.isFinite(outcome.weight) &&
             outcome.weight > 0
         ));
@@ -100,7 +100,7 @@ test('saved account validation and leaderboard ordering are bounded', () => {
         daily: { date: 'not-a-date', hunt: 500, dig: 2 }
     }), {
         name: 'Student',
-        balance: 0,
+        balance: -10,
         daily: { date: '', hunt: 0, dig: 2 }
     });
 

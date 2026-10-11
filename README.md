@@ -75,7 +75,6 @@ The bot must be a member of each group where it should answer. Changes to
 | `CR wallet`, `CR leaderboard` | Notice, Discussion, mod groups | Check game points or the group's top balances |
 | `CR transfer @mention <amount>` | Notice, Discussion, mod groups | Transfer fictional game points to a member |
 | `CR quiz`, `CR score` | Discussion, mod groups, admins | Start a quiz / view scores |
-| `CR akinator` | Notice, Discussion, mod groups | Play a one-player English Akinator game |
 | `CR update <name> <text>` | Mod groups, admins | Change an existing text reply |
 | `CR update examtime <text>` + image | Mod groups, admins | Update examtime text and image together |
 | `CR mod list` | Mod groups, admins | List trusted mod groups |
@@ -110,14 +109,6 @@ its link, while a new subject is added to the resource browser. Only HTTP and
 HTTPS links are accepted. Bot admins can use this command from any chat the
 bot receives.
 
-### Akinator
-
-`CR akinator` starts a one-player English character-guessing game. The player
-who starts the game must reply with `1` through `5` for each question. The game
-accepts answers for 30 seconds, then shows the guessed character and asks for
-`yes` or `no` confirmation. Only the initiating player can advance that game.
-Active games are held in memory and end if the bot restarts.
-
 ### Random GIFs via GIPHY
 
 `CR meme` fetches a random GIF tagged `meme` from [GIPHY's Random
@@ -126,17 +117,14 @@ MP4 rendition as an animated GIF. Results are restricted to G-rated content.
 Create an API key in the [GIPHY Developers
 Dashboard](https://developers.giphy.com/dashboard/).
 
-To add the key directly in the code, open `index.js` and find this line near
-the top of the file:
+Set the key in the bot process environment:
 
 ```js
-const GIPHY_API_KEY_IN_CODE = 'PASTE_YOUR_GIPHY_API_KEY_HERE';
+GIPHY_API_KEY=your-giphy-api-key
 ```
 
-Replace the placeholder with your key, keeping the quotes, then save and
-restart the bot. Alternatively, set `GIPHY_API_KEY` in the bot process
-environment; that value takes priority over the in-code key. `GIPHY_TAG` is
-also optional and defaults to `meme`.
+Restart the bot after setting it. `GIPHY_TAG` is optional and defaults to
+`meme`. The source code intentionally does not contain a fallback API key.
 
 **Security:** a real key in `index.js` can be exposed if you commit or share the
 file. Keep your key private and do not commit the edited file with the real key;
@@ -169,11 +157,11 @@ up to 10 times each in each group per day. Daily attempts reset at midnight
 according to the bot host's local time. Balances and attempt limits are
 separate in each group.
 
-Each game has 14 weighted, CSE-themed outcomes, including 10 additional
-outcomes for hunt and 10 for dig. Each outcome awards 0–60 **CSE Coins** (`🪙`).
-`CR wallet` shows your balance and remaining tries; `CR leaderboard` shows the
-group's top five balances. To give coins to another member, mention exactly one
-person:
+Each game has 14 weighted, CSE-themed outcomes, including a few negative
+results. Some runs can award up to 60 **CSE Coins** (`🪙`), while others can
+cost a small penalty. `CR wallet` shows your balance and remaining tries; `CR
+leaderboard` shows the group's top five balances. To give coins to another
+member, mention exactly one person:
 
 ```text
 CR transfer @mention 25

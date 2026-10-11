@@ -3,8 +3,8 @@ export const GAME_TYPES = ['hunt', 'dig'];
 
 const GAME_OUTCOMES = {
     hunt: [
-        { text: 'You chased a bug into the lab and found nothing.', emoji: '🐛', points: 0, weight: 3 },
-        { text: 'You caught a runaway USB drive.', emoji: '🔌', points: 5, weight: 4 },
+        { text: 'You chased a bug into the lab and found nothing.', emoji: '🐛', points: 0, weight: 2.5 },
+        { text: 'You caught a runaway USB drive.', emoji: '🔌', points: 5, weight: 3.5 },
         { text: 'You found a clean set of lecture notes.', emoji: '📚', points: 10, weight: 2 },
         { text: 'You recovered the missing lab equipment!', emoji: '🧰', points: 20, weight: 1 },
         { text: 'You found a spare lab coat.', emoji: '🥼', points: 3, weight: 0.25 },
@@ -13,14 +13,14 @@ const GAME_OUTCOMES = {
         { text: 'You found a fresh pack of whiteboard markers.', emoji: '🖊️', points: 8, weight: 0.25 },
         { text: 'You discovered a quiet study spot in the department.', emoji: '🤫', points: 12, weight: 0.25 },
         { text: 'You fixed a stubborn compiler warning for a classmate.', emoji: '🛠️', points: 15, weight: 0.25 },
-        { text: 'You recovered a forgotten project backup.', emoji: '💾', points: 25, weight: 0.25 },
-        { text: 'You found the last working HDMI adapter in the lab.', emoji: '🖥️', points: 30, weight: 0.25 },
-        { text: 'You helped debug a project right before submission.', emoji: '🧑‍💻', points: 40, weight: 0.25 },
+        { text: 'You accidentally spent coins on a broken charger.', emoji: '⚡', points: -6, weight: 0.5 },
+        { text: 'A rushed lab cleanup cost you a few coins.', emoji: '🧹', points: -9, weight: 0.5 },
+        { text: 'You lost a betting token while rushing to class.', emoji: '🎲', points: -12, weight: 0.25 },
         { text: 'You found a sealed box of department goodies!', emoji: '🎁', points: 60, weight: 0.25 }
     ],
     dig: [
-        { text: 'You dug up an old null pointer. No points this time.', emoji: '🕳️', points: 0, weight: 3 },
-        { text: 'You found a spare notebook.', emoji: '📓', points: 5, weight: 4 },
+        { text: 'You dug up an old null pointer. No points this time.', emoji: '🕳️', points: 0, weight: 2.5 },
+        { text: 'You found a spare notebook.', emoji: '📓', points: 5, weight: 3.5 },
         { text: 'You uncovered a useful past paper.', emoji: '📝', points: 10, weight: 2 },
         { text: 'You discovered a buried cache of lab credits!', emoji: '🏆', points: 20, weight: 1 },
         { text: 'You uncovered a handful of lost coins.', emoji: '🪙', points: 3, weight: 0.25 },
@@ -29,9 +29,9 @@ const GAME_OUTCOMES = {
         { text: 'You unearthed a clean set of algorithm notes.', emoji: '📚', points: 8, weight: 0.25 },
         { text: 'You found an old hard drive with useful references.', emoji: '💽', points: 12, weight: 0.25 },
         { text: 'You uncovered a forgotten logic puzzle.', emoji: '🧩', points: 15, weight: 0.25 },
-        { text: 'You found a box of spare cables and adapters.', emoji: '🔗', points: 25, weight: 0.25 },
-        { text: 'You dug up a vintage laptop that still boots!', emoji: '💻', points: 30, weight: 0.25 },
-        { text: 'You discovered an archived solution set.', emoji: '🗂️', points: 40, weight: 0.25 },
+        { text: 'You cracked a dusty power bank and it cost you coins.', emoji: '🔋', points: -7, weight: 0.5 },
+        { text: 'Your dig disturbed a hidden vending machine fee.', emoji: '💸', points: -10, weight: 0.5 },
+        { text: 'You paid a repair fee for a damaged equipment crate.', emoji: '🧰', points: -14, weight: 0.25 },
         { text: 'You struck a shiny cache of rare lab parts!', emoji: '💎', points: 60, weight: 0.25 }
     ]
 };
@@ -62,7 +62,7 @@ export function createGameAccount(value) {
     const daily = isRecord(value?.daily) ? value.daily : {};
     return {
         name: sanitizeGameName(value?.name) || 'Classmate',
-        balance: Number.isSafeInteger(value?.balance) && value.balance >= 0 ? value.balance : 0,
+        balance: Number.isSafeInteger(value?.balance) ? value.balance : 0,
         daily: {
             date: typeof daily.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(daily.date)
                 ? daily.date
@@ -148,8 +148,7 @@ export function getGameLeaderboard(accounts, limit = 5) {
         .filter(([, account]) =>
             isRecord(account) &&
             typeof account.name === 'string' &&
-            Number.isSafeInteger(account.balance) &&
-            account.balance >= 0
+            Number.isSafeInteger(account.balance)
         )
         .sort(([, left], [, right]) =>
             right.balance - left.balance || left.name.localeCompare(right.name)

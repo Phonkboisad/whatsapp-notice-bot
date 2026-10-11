@@ -20,15 +20,6 @@ import {
     sanitizeGameName,
     transferGamePoints as applyGamePointTransfer
 } from './cse-game.js';
-import {
-    AkinatorGame,
-    AKINATOR_ANSWER_CHOICES,
-    AKINATOR_TIMEOUT_MS,
-    formatAkinatorGuess,
-    formatAkinatorQuestion,
-    parseAkinatorAnswer,
-    parseAkinatorConfirmation
-} from './akinator-game.js';
 
 const NOTICE_GROUP_JID = '120363400837000305@g.us';
 const DISCUSSION_GROUP_JID = '120363406812832614@g.us';
@@ -44,7 +35,7 @@ const EXAMTIME_IMAGE_EXTENSIONS = {
 const QUIZ_DURATION_MS = 30_000;
 const SHELL_COMMAND_TIMEOUT_MS = 20_000;
 const SHELL_COMMAND_MAX_OUTPUT_LENGTH = 5_000;
-const GIPHY_API_KEY_IN_CODE = 'ajjQyLFARxkpMIzHUWpuhN0sLvzbvWVv';
+const GIPHY_API_KEY_IN_CODE = 'PASTE_YOUR_GIPHY_API_KEY_HERE';
 const GIPHY_API_KEY = process.env.GIPHY_API_KEY?.trim() ||
     (GIPHY_API_KEY_IN_CODE.startsWith('PASTE_') ? '' : GIPHY_API_KEY_IN_CODE);
 const GIPHY_TAG = process.env.GIPHY_TAG?.trim() || 'meme';
@@ -66,7 +57,6 @@ let botState = {
 };
 const resourceSelectionState = new Map();
 const activeQuizRounds = new Map();
-const activeAkinatorGames = new Map();
 let gameUpdateQueue = Promise.resolve();
 
 function isRecord(value) {
@@ -549,128 +539,6 @@ function formatQuizQuestion(question) {
     ].join('\n');
 }
 
-function getAkinatorSessionKey(chatJid, userJid) {
-    return `${chatJid}:${userJid}`;
-}
-
-function clearAkinatorGame(sessionKey, gameSession) {
-    if (activeAkinatorGames.get(sessionKey) !== gameSession) return;
-    clearTimeout(gameSession.timeout);
-    activeAkinatorGames.delete(sessionKey);
-}
-
-function scheduleAkinatorTimeout(sock, chatJid, sessionKey, gameSession) {
-    gameSession.timeout = setTimeout(async () => {
-        if (activeAkinatorGames.get(sessionKey) !== gameSession) return;
-        activeAkinatorGames.delete(sessionKey);
-        await sock.sendMessage(chatJid, {
-            text: '⏱️ Akinator timed out because there was no answer for 30 seconds. Start again with `CR akinator`.'
-        }).catch(error => console.error('Could not send Akinator timeout:', error));
-    }, AKINATOR_TIMEOUT_MS);
-}
-
-async function sendAkinatorGuess(sock, chatJid, message, gameSession) {
-    const content = gameSession.game.imageUrl
-        ? { image: { url: gameSession.game.imageUrl }, caption: formatAkinatorGuess(gameSession.game) }
-        : { text: formatAkinatorGuess(gameSession.game) };
-    await sock.sendMessage(chatJid, content, { quoted: message });
-}
-
-async function handleAkinatorMessage(sock, message, chatJid, userJid, text) {
-    const sessionKey = getAkinatorSessionKey(chatJid, userJid);
-    const gameSession = activeAkinatorGames.get(sessionKey);
-    if (!gameSession || gameSession.userJid !== userJid) return false;
-
-    if (gameSession.stage === 'questions') {
-        const answer = parseAkinatorAnswer(text);
-        if (answer === undefined) return false;
-
-        clearTimeout(gameSession.timeout);
-        try {
-            await gameSession.game.answer(answer);
-            if (gameSession.game.ended) {
-                gameSession.stage = 'confirmation';
-                await sendAkinatorGuess(sock, chatJid, message, gameSession);
-            } else {
-                await sock.sendMessage(
-                    chatJid,
-                    { text: formatAkinatorQuestion(gameSession.game) },
-                    { quoted: message }
-                );
-            }
-            scheduleAkinatorTimeout(sock, chatJid, sessionKey, gameSession);
-        } catch (error) {
-            console.error('Could not advance the Akinator game:', error);
-            clearAkinatorGame(sessionKey, gameSession);
-            await sock.sendMessage(
-                chatJid,
-                { text: 'Akinator could not continue this game. Start a new one with `CR akinator`.' },
-                { quoted: message }
-            );
-        }
-        return true;
-    }
-
-    const confirmation = parseAkinatorConfirmation(text);
-    if (confirmation === undefined) return false;
-
-    clearAkinatorGame(sessionKey, gameSession);
-    try {
-        if (confirmation) await gameSession.game.confirm();
-        await sock.sendMessage(
-            chatJid,
-            { text: confirmation ? '🎉 Awesome! Thanks for playing.' : 'GG! Thanks for playing.' },
-            { quoted: message }
-        );
-    } catch (error) {
-        console.error('Could not finish the Akinator game:', error);
-        await sock.sendMessage(
-            chatJid,
-            { text: 'The Akinator game ended, but the final result could not be saved.' },
-            { quoted: message }
-        );
-    }
-    return true;
-}
-
-async function startAkinatorGame(sock, message, chatJid, userJid) {
-    const sessionKey = getAkinatorSessionKey(chatJid, userJid);
-    if (activeAkinatorGames.has(sessionKey)) {
-        await sock.sendMessage(
-            chatJid,
-            { text: 'An Akinator game is already in progress for you here. Reply to its current question or wait for it to time out.' },
-            { quoted: message }
-        );
-        return;
-    }
-
-    const gameSession = {
-        game: new AkinatorGame(),
-        stage: 'questions',
-        userJid,
-        timeout: undefined
-    };
-    activeAkinatorGames.set(sessionKey, gameSession);
-
-    try {
-        await gameSession.game.start();
-        await sock.sendMessage(
-            chatJid,
-            { text: formatAkinatorQuestion(gameSession.game) },
-            { quoted: message }
-        );
-        scheduleAkinatorTimeout(sock, chatJid, sessionKey, gameSession);
-    } catch (error) {
-        console.error('Could not start the Akinator game:', error);
-        clearAkinatorGame(sessionKey, gameSession);
-        await sock.sendMessage(
-            chatJid,
-            { text: 'Could not start Akinator right now. Please try again later.' },
-            { quoted: message }
-        );
-    }
-}
-
 function formatQuizScoreboard(scores) {
     const leaders = Object.values(scores)
         .filter(entry => isRecord(entry) && typeof entry.name === 'string' && Number.isInteger(entry.score))
@@ -691,7 +559,7 @@ function formatCseGameMenu() {
         '• `CR games` — show this game guide.',
         '• `CR hunt` — explore campus for study gear and lab finds.',
         '• `CR dig` — uncover notes, devices, and hidden CSE treasures.',
-        '• Each game has 14 weighted outcomes and rewards from 0–60 🪙 CSE Coins.',
+        '• Each game has 14 weighted outcomes with rewards from -14 to +60 🪙 CSE Coins, so some runs can cost points.',
         `• Daily limit per member: ${GAME_DAILY_ATTEMPT_LIMIT} hunt and ${GAME_DAILY_ATTEMPT_LIMIT} dig tries in each group.`,
         '• Tries reset at midnight using the bot host local time.',
         '• `CR wallet` — check your coin balance and tries used today.',
@@ -738,10 +606,14 @@ async function finishQuizRound(sock, groupJid, round) {
 
     const correctPlayers = [...round.answers.values()]
         .filter(answer => answer.correct)
-        .map(answer => answer.name);
-    const result = correctPlayers.length
-        ? `Correct answers submitted by: ${correctPlayers.join(', ')}`
-        : 'No one answered correctly this round.';
+        .map(answer => `${answer.name} (+1)`);
+    const incorrectPlayers = [...round.answers.values()]
+        .filter(answer => !answer.correct && !answer.hidden)
+        .map(answer => `${answer.name} (-1)`);
+    const result = [
+        correctPlayers.length ? `Correct answers: ${correctPlayers.join(', ')}` : 'No one answered correctly this round.',
+        incorrectPlayers.length ? `Wrong answers: ${incorrectPlayers.join(', ')}` : 'No one answered incorrectly this round.'
+    ].join('\n');
 
     await sock.sendMessage(groupJid, {
         text: [
@@ -773,24 +645,23 @@ async function handleQuizAnswer(sock, message, groupJid, round, choice) {
     const isCorrect = Number(choice) === round.question.answer;
     const previousScore = botState.quizScores[groupJid]?.[participantId];
     const name = (message.pushName || previousScore?.name || 'Classmate').replace(/\s+/g, ' ').trim().slice(0, 40);
-    round.answers.set(participantId, { name, correct: isCorrect });
+    const scoreDelta = isCorrect ? 1 : -1;
+    const groupScores = botState.quizScores[groupJid] || {};
+    groupScores[participantId] = {
+        name,
+        score: (previousScore?.score || 0) + scoreDelta
+    };
+    botState.quizScores[groupJid] = groupScores;
+    round.answers.set(participantId, { name, correct: isCorrect, hidden: false });
 
-    if (isCorrect) {
-        const groupScores = botState.quizScores[groupJid] || {};
-        groupScores[participantId] = { name, score: (previousScore?.score || 0) + 1 };
-        botState.quizScores[groupJid] = groupScores;
-
-        try {
-            await persistBotState();
-        } catch (error) {
-            console.error('Could not save the quiz score:', error);
-        }
+    try {
+        await persistBotState();
+    } catch (error) {
+        console.error('Could not save the quiz score:', error);
     }
 
     await sock.sendMessage(groupJid, {
-        text: isCorrect
-            ? 'Correct! You earned 1 point.'
-            : 'Not quite. The correct answer will be revealed when the round ends.',
+        text: 'Answer recorded. The final result and correct answer will be revealed when the round ends.',
         quoted: message
     });
 }
@@ -900,9 +771,6 @@ function formatCrHelp({ commands, images }, showModManual) {
             '',
             formatCseGameMenu(),
             '',
-            '🧞 *Akinator*',
-            '• `CR akinator` (English-only character guessing game)',
-            '',
             '🧠 *Quiz*',
             '• `CR quiz`',
             '• `CR score`',
@@ -931,9 +799,6 @@ function formatCrHelp({ commands, images }, showModManual) {
         '• `CR rsrc set <subject> <https://link>` (mod groups and bot admins)',
         '',
         formatCseGameMenu(),
-        '',
-        '🧞 *Akinator*',
-        '• `CR akinator` (English-only character guessing game)',
         '',
         '🧠 *Quiz*',
         '• `CR quiz` (Discussion and mod groups)',
@@ -1001,9 +866,6 @@ function formatCrMenu({ commands, images, resources }) {
             : []),
         '',
         formatCseGameMenu(),
-        '',
-        '🧞 *Akinator*',
-        '• `CR akinator` (English-only character guessing game)',
         '',
         '🧠 *Quiz*',
         '• `CR quiz` (start a quiz in the Discussion group)',
@@ -1747,17 +1609,6 @@ async function startBot() {
                 continue;
             }
 
-            if (senderUserJid) {
-                const handledAkinator = await handleAkinatorMessage(
-                    sock,
-                    m,
-                    senderJid,
-                    senderUserJid,
-                    text
-                );
-                if (handledAkinator) continue;
-            }
-
             const pendingResources = resourceSelectionState.get(senderJid);
             if (pendingResources) {
                 const choiceText = text.trim();
@@ -1846,28 +1697,6 @@ async function startBot() {
                             { quoted: m }
                         );
                     }
-                    continue;
-                }
-
-                if (chainedCommand === 'akinator') {
-                    if (!isGroupJid(senderJid) || (!isAllowedGroup && !isModGroup)) {
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: 'Akinator is available only in the configured department and mod groups.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-                    if (!senderUserJid) {
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: 'Could not identify your WhatsApp account, so Akinator could not start.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-
-                    await startAkinatorGame(sock, m, senderJid, senderUserJid);
                     continue;
                 }
 
