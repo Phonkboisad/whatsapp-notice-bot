@@ -20,6 +20,15 @@ import {
     sanitizeGameName,
     transferGamePoints as applyGamePointTransfer
 } from './cse-game.js';
+import {
+    AkinatorGame,
+    AKINATOR_ANSWER_CHOICES,
+    AKINATOR_TIMEOUT_MS,
+    formatAkinatorGuess,
+    formatAkinatorQuestion,
+    parseAkinatorAnswer,
+    parseAkinatorConfirmation
+} from './akinator-game.js';
 
 const NOTICE_GROUP_JID = '120363400837000305@g.us';
 const DISCUSSION_GROUP_JID = '120363406812832614@g.us';
@@ -57,6 +66,7 @@ let botState = {
 };
 const resourceSelectionState = new Map();
 const activeQuizRounds = new Map();
+const activeAkinatorGames = new Map();
 let gameUpdateQueue = Promise.resolve();
 
 function isRecord(value) {
@@ -539,6 +549,128 @@ function formatQuizQuestion(question) {
     ].join('\n');
 }
 
+function getAkinatorSessionKey(chatJid, userJid) {
+    return `${chatJid}:${userJid}`;
+}
+
+function clearAkinatorGame(sessionKey, gameSession) {
+    if (activeAkinatorGames.get(sessionKey) !== gameSession) return;
+    clearTimeout(gameSession.timeout);
+    activeAkinatorGames.delete(sessionKey);
+}
+
+function scheduleAkinatorTimeout(sock, chatJid, sessionKey, gameSession) {
+    gameSession.timeout = setTimeout(async () => {
+        if (activeAkinatorGames.get(sessionKey) !== gameSession) return;
+        activeAkinatorGames.delete(sessionKey);
+        await sock.sendMessage(chatJid, {
+            text: '⏱️ Akinator timed out because there was no answer for 30 seconds. Start again with `CR akinator`.'
+        }).catch(error => console.error('Could not send Akinator timeout:', error));
+    }, AKINATOR_TIMEOUT_MS);
+}
+
+async function sendAkinatorGuess(sock, chatJid, message, gameSession) {
+    const content = gameSession.game.imageUrl
+        ? { image: { url: gameSession.game.imageUrl }, caption: formatAkinatorGuess(gameSession.game) }
+        : { text: formatAkinatorGuess(gameSession.game) };
+    await sock.sendMessage(chatJid, content, { quoted: message });
+}
+
+async function handleAkinatorMessage(sock, message, chatJid, userJid, text) {
+    const sessionKey = getAkinatorSessionKey(chatJid, userJid);
+    const gameSession = activeAkinatorGames.get(sessionKey);
+    if (!gameSession || gameSession.userJid !== userJid) return false;
+
+    if (gameSession.stage === 'questions') {
+        const answer = parseAkinatorAnswer(text);
+        if (answer === undefined) return false;
+
+        clearTimeout(gameSession.timeout);
+        try {
+            await gameSession.game.answer(answer);
+            if (gameSession.game.ended) {
+                gameSession.stage = 'confirmation';
+                await sendAkinatorGuess(sock, chatJid, message, gameSession);
+            } else {
+                await sock.sendMessage(
+                    chatJid,
+                    { text: formatAkinatorQuestion(gameSession.game) },
+                    { quoted: message }
+                );
+            }
+            scheduleAkinatorTimeout(sock, chatJid, sessionKey, gameSession);
+        } catch (error) {
+            console.error('Could not advance the Akinator game:', error);
+            clearAkinatorGame(sessionKey, gameSession);
+            await sock.sendMessage(
+                chatJid,
+                { text: 'Akinator could not continue this game. Start a new one with `CR akinator`.' },
+                { quoted: message }
+            );
+        }
+        return true;
+    }
+
+    const confirmation = parseAkinatorConfirmation(text);
+    if (confirmation === undefined) return false;
+
+    clearAkinatorGame(sessionKey, gameSession);
+    try {
+        if (confirmation) await gameSession.game.confirm();
+        await sock.sendMessage(
+            chatJid,
+            { text: confirmation ? '🎉 Awesome! Thanks for playing.' : 'GG! Thanks for playing.' },
+            { quoted: message }
+        );
+    } catch (error) {
+        console.error('Could not finish the Akinator game:', error);
+        await sock.sendMessage(
+            chatJid,
+            { text: 'The Akinator game ended, but the final result could not be saved.' },
+            { quoted: message }
+        );
+    }
+    return true;
+}
+
+async function startAkinatorGame(sock, message, chatJid, userJid) {
+    const sessionKey = getAkinatorSessionKey(chatJid, userJid);
+    if (activeAkinatorGames.has(sessionKey)) {
+        await sock.sendMessage(
+            chatJid,
+            { text: 'An Akinator game is already in progress for you here. Reply to its current question or wait for it to time out.' },
+            { quoted: message }
+        );
+        return;
+    }
+
+    const gameSession = {
+        game: new AkinatorGame(),
+        stage: 'questions',
+        userJid,
+        timeout: undefined
+    };
+    activeAkinatorGames.set(sessionKey, gameSession);
+
+    try {
+        await gameSession.game.start();
+        await sock.sendMessage(
+            chatJid,
+            { text: formatAkinatorQuestion(gameSession.game) },
+            { quoted: message }
+        );
+        scheduleAkinatorTimeout(sock, chatJid, sessionKey, gameSession);
+    } catch (error) {
+        console.error('Could not start the Akinator game:', error);
+        clearAkinatorGame(sessionKey, gameSession);
+        await sock.sendMessage(
+            chatJid,
+            { text: 'Could not start Akinator right now. Please try again later.' },
+            { quoted: message }
+        );
+    }
+}
+
 function formatQuizScoreboard(scores) {
     const leaders = Object.values(scores)
         .filter(entry => isRecord(entry) && typeof entry.name === 'string' && Number.isInteger(entry.score))
@@ -768,6 +900,9 @@ function formatCrHelp({ commands, images }, showModManual) {
             '',
             formatCseGameMenu(),
             '',
+            '🧞 *Akinator*',
+            '• `CR akinator` (English-only character guessing game)',
+            '',
             '🧠 *Quiz*',
             '• `CR quiz`',
             '• `CR score`',
@@ -796,6 +931,9 @@ function formatCrHelp({ commands, images }, showModManual) {
         '• `CR rsrc set <subject> <https://link>` (mod groups and bot admins)',
         '',
         formatCseGameMenu(),
+        '',
+        '🧞 *Akinator*',
+        '• `CR akinator` (English-only character guessing game)',
         '',
         '🧠 *Quiz*',
         '• `CR quiz` (Discussion and mod groups)',
@@ -863,6 +1001,9 @@ function formatCrMenu({ commands, images, resources }) {
             : []),
         '',
         formatCseGameMenu(),
+        '',
+        '🧞 *Akinator*',
+        '• `CR akinator` (English-only character guessing game)',
         '',
         '🧠 *Quiz*',
         '• `CR quiz` (start a quiz in the Discussion group)',
@@ -1606,6 +1747,17 @@ async function startBot() {
                 continue;
             }
 
+            if (senderUserJid) {
+                const handledAkinator = await handleAkinatorMessage(
+                    sock,
+                    m,
+                    senderJid,
+                    senderUserJid,
+                    text
+                );
+                if (handledAkinator) continue;
+            }
+
             const pendingResources = resourceSelectionState.get(senderJid);
             if (pendingResources) {
                 const choiceText = text.trim();
@@ -1694,6 +1846,28 @@ async function startBot() {
                             { quoted: m }
                         );
                     }
+                    continue;
+                }
+
+                if (chainedCommand === 'akinator') {
+                    if (!isGroupJid(senderJid) || (!isAllowedGroup && !isModGroup)) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Akinator is available only in the configured department and mod groups.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+                    if (!senderUserJid) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Could not identify your WhatsApp account, so Akinator could not start.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    await startAkinatorGame(sock, m, senderJid, senderUserJid);
                     continue;
                 }
 

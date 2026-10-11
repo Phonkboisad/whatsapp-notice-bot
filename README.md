@@ -75,6 +75,7 @@ The bot must be a member of each group where it should answer. Changes to
 | `CR wallet`, `CR leaderboard` | Notice, Discussion, mod groups | Check game points or the group's top balances |
 | `CR transfer @mention <amount>` | Notice, Discussion, mod groups | Transfer fictional game points to a member |
 | `CR quiz`, `CR score` | Discussion, mod groups, admins | Start a quiz / view scores |
+| `CR akinator` | Notice, Discussion, mod groups | Play a one-player English Akinator game |
 | `CR update <name> <text>` | Mod groups, admins | Change an existing text reply |
 | `CR update examtime <text>` + image | Mod groups, admins | Update examtime text and image together |
 | `CR mod list` | Mod groups, admins | List trusted mod groups |
@@ -108,6 +109,14 @@ The subject match is case-insensitive; setting an existing subject replaces
 its link, while a new subject is added to the resource browser. Only HTTP and
 HTTPS links are accepted. Bot admins can use this command from any chat the
 bot receives.
+
+### Akinator
+
+`CR akinator` starts a one-player English character-guessing game. The player
+who starts the game must reply with `1` through `5` for each question. The game
+accepts answers for 30 seconds, then shows the guessed character and asks for
+`yes` or `no` confirmation. Only the initiating player can advance that game.
+Active games are held in memory and end if the bot restarts.
 
 ### Random GIFs via GIPHY
 
