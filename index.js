@@ -27,7 +27,7 @@ const MOD_GROUP_JID = '120363430226894816@g.us';
 const BOT_DATA_FILE = new URL('./bot-data.json', import.meta.url);
 const BOT_STATE_FILE = new URL('./bot-state.json', import.meta.url);
 const DEFAULT_CR_REPLY = 'Keep studying and stay focused.';
-const EXAMTIME_IMAGE_EXTENSIONS = {
+const NOTICE_IMAGE_EXTENSIONS = {
     'image/jpeg': 'jpg',
     'image/png': 'png',
     'image/webp': 'webp'
@@ -43,6 +43,11 @@ const GIPHY_REQUEST_TIMEOUT_MS = 15_000;
 const GIPHY_API_MAX_RESPONSE_BYTES = 64 * 1024;
 const GIPHY_MEDIA_MAX_BYTES = 8 * 1024 * 1024;
 const GIPHY_MAX_REDIRECTS = 3;
+const RESERVED_CR_COMMANDS = new Set([
+    'add', 'admin', 'block', 'dig', 'echo', 'games', 'help', 'hunt', 'leaderboard',
+    'menu', 'meme', 'mod', 'myid', 'quiz', 'remove', 'rsrc', 'run', 'score', 'start',
+    'stop', 'transfer', 'unblock', 'update', 'wallet'
+]);
 let repliesEnabled = true;
 let botDataUpdateQueue = Promise.resolve();
 let botStateUpdateQueue = Promise.resolve();
@@ -65,6 +70,12 @@ function isRecord(value) {
 
 function isGroupJid(value) {
     return typeof value === 'string' && /^\d+(?:-\d+)?@g\.us$/.test(value);
+}
+
+function isNoticeCommandName(value) {
+    return typeof value === 'string' &&
+        /^[a-z]+(?:-[a-z]+)*$/i.test(value) &&
+        !RESERVED_CR_COMMANDS.has(value.toLowerCase());
 }
 
 async function fetchHttpsResponse(urlValue, options, sameOriginRedirectsOnly = false) {
@@ -666,37 +677,7 @@ async function handleQuizAnswer(sock, message, groupJid, round, choice) {
     });
 }
 
-function updateCrReply(command, reply) {
-    const update = botDataUpdateQueue.then(async () => {
-        const data = JSON.parse(await readFile(BOT_DATA_FILE, 'utf8'));
-        if (
-            !data.commands ||
-            typeof data.commands !== 'object' ||
-            Array.isArray(data.commands) ||
-            !Object.hasOwn(data.commands, command)
-        ) {
-            return false;
-        }
-
-        data.commands[command] = reply;
-        const temporaryFile = new URL('./bot-data.json.tmp', import.meta.url);
-
-        try {
-            await writeFile(temporaryFile, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
-            await rename(temporaryFile, BOT_DATA_FILE);
-        } catch (error) {
-            await unlink(temporaryFile).catch(() => {});
-            throw error;
-        }
-
-        return true;
-    });
-
-    botDataUpdateQueue = update.catch(() => {});
-    return update;
-}
-
-function updateCrImage(command, imagePath, reply) {
+function updateCrNotice(command, reply, imagePath) {
     const update = botDataUpdateQueue.then(async () => {
         const data = JSON.parse(await readFile(BOT_DATA_FILE, 'utf8'));
         if (
@@ -706,10 +687,11 @@ function updateCrImage(command, imagePath, reply) {
             return { updated: false };
         }
 
-        if (reply !== undefined) data.commands[command] = reply;
+        data.commands[command] = reply;
         if (!isRecord(data.images)) data.images = {};
         const previousImage = data.images[command];
-        data.images[command] = imagePath;
+        if (imagePath) data.images[command] = imagePath;
+        else delete data.images[command];
         const temporaryFile = new URL('./bot-data.json.tmp', import.meta.url);
 
         try {
@@ -727,9 +709,56 @@ function updateCrImage(command, imagePath, reply) {
     return update;
 }
 
-function isManagedExamtimeImage(imagePath) {
+function addCrNotice(command) {
+    const update = botDataUpdateQueue.then(async () => {
+        const data = JSON.parse(await readFile(BOT_DATA_FILE, 'utf8'));
+        if (!isRecord(data.commands)) data.commands = {};
+        if (Object.hasOwn(data.commands, command)) return false;
+
+        data.commands[command] = '';
+        const temporaryFile = new URL('./bot-data.json.tmp', import.meta.url);
+        try {
+            await writeFile(temporaryFile, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+            await rename(temporaryFile, BOT_DATA_FILE);
+        } catch (error) {
+            await unlink(temporaryFile).catch(() => {});
+            throw error;
+        }
+        return true;
+    });
+
+    botDataUpdateQueue = update.catch(() => {});
+    return update;
+}
+
+function removeCrNotice(command) {
+    const update = botDataUpdateQueue.then(async () => {
+        const data = JSON.parse(await readFile(BOT_DATA_FILE, 'utf8'));
+        if (!isRecord(data.commands) || !Object.hasOwn(data.commands, command)) {
+            return { removed: false };
+        }
+
+        const previousImage = isRecord(data.images) ? data.images[command] : undefined;
+        delete data.commands[command];
+        if (isRecord(data.images)) delete data.images[command];
+        const temporaryFile = new URL('./bot-data.json.tmp', import.meta.url);
+        try {
+            await writeFile(temporaryFile, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+            await rename(temporaryFile, BOT_DATA_FILE);
+        } catch (error) {
+            await unlink(temporaryFile).catch(() => {});
+            throw error;
+        }
+        return { removed: true, previousImage };
+    });
+
+    botDataUpdateQueue = update.catch(() => {});
+    return update;
+}
+
+function isManagedNoticeImage(imagePath) {
     return typeof imagePath === 'string' &&
-        /^assets\/examtime-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:jpg|png|webp)$/i.test(imagePath);
+        /^assets\/(?:examtime|cr-[a-z0-9-]+)-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:jpg|png|webp)$/i.test(imagePath);
 }
 
 function getEchoSenderMention(key) {
@@ -811,7 +840,11 @@ function formatCrHelp({ commands, images }, showModManual) {
         '• `CR mod list`',
         '• `CR start` (enable Discussion group replies)',
         '• `CR stop` (disable Discussion group replies)',
-        '• `CR update <command> <new text>`',
+        '• `CR add <name>`',
+        '• `CR update <name> <new text>` (replaces the notice with text only)',
+        '• `CR update <name>` with a JPEG, PNG, or WebP attachment/quoted image (replaces it with image only)',
+        '• `CR update <name> <caption>` with an attachment/quoted image (replaces it with both)',
+        '• `CR remove <name>`',
         '• `CR echo notice [text]` (or echo a caption/attachment)',
         '• `CR echo discussion [text]` (or echo a caption/attachment)',
         '',
@@ -1362,124 +1395,137 @@ async function startBot() {
                     continue;
                 }
 
-                if (/^\s*CR\s+update(?:\s|$)/i.test(text)) {
-                    const hasMediaAttachment = [
-                        'imageMessage',
-                        'videoMessage',
-                        'documentMessage',
-                        'audioMessage',
-                        'stickerMessage',
-                        'albumMessage'
-                    ].some(type => message[type]);
-
-                    if (hasMediaAttachment) {
-                        const imageUpdateMatch = text.match(
-                            /^\s*CR\s+update\s+examtime(?:\s+([\s\S]*\S))?\s*$/i
-                        );
-                        if (!message.imageMessage || !imageUpdateMatch) {
-                            await sock.sendMessage(
-                                senderJid,
-                                { text: 'Attach a JPEG, PNG, or WebP image with the caption `CR update examtime <new text>` or `CR update examtime`.' },
-                                { quoted: m }
-                            );
-                            continue;
-                        }
-
-                        const mimeType = message.imageMessage.mimetype;
-                        const extension = Object.hasOwn(EXAMTIME_IMAGE_EXTENSIONS, mimeType)
-                            ? EXAMTIME_IMAGE_EXTENSIONS[mimeType]
-                            : undefined;
-                        if (!extension) {
-                            await sock.sendMessage(
-                                senderJid,
-                                { text: 'Only JPEG, PNG, and WebP images can be saved for CR examtime.' },
-                                { quoted: m }
-                            );
-                            continue;
-                        }
-
-                        let savedImagePath;
-                        let settingsUpdated = false;
-                        try {
-                            const imageBuffer = await downloadMediaMessage(m, 'buffer', {});
-                            if (!Buffer.isBuffer(imageBuffer) || imageBuffer.length === 0) {
-                                throw new Error('Downloaded examtime image was empty.');
+                if (/^\s*CR\s+(?:add|remove|update)(?:\s|$)/i.test(text)) {
+                    const noticeMatch = text.match(
+                        /^\s*CR\s+(add|remove|update)\s+([a-z]+(?:-[a-z]+)*)(?:\s+([\s\S]*?))?\s*$/i
+                    );
+                    const action = noticeMatch?.[1]?.toLowerCase();
+                    const command = noticeMatch?.[2]?.toLowerCase();
+                    const suppliedReply = noticeMatch?.[3]?.trim();
+                    const quotedMessage = message.extendedTextMessage?.contextInfo?.quotedMessage;
+                    const quotedContent = normalizeMessageContent(quotedMessage) || quotedMessage;
+                    const imageMessage = message.imageMessage || quotedContent?.imageMessage;
+                    const mediaMessage = message.imageMessage
+                        ? m
+                        : quotedMessage
+                            ? {
+                                key: {
+                                    remoteJid: senderJid,
+                                    id: message.extendedTextMessage?.contextInfo?.stanzaId,
+                                    participant: message.extendedTextMessage?.contextInfo?.participant
+                                },
+                                message: quotedMessage
                             }
+                            : undefined;
 
-                            savedImagePath = `assets/examtime-${randomUUID()}.${extension}`;
-                            await writeFile(new URL(savedImagePath, import.meta.url), imageBuffer, { flag: 'wx' });
+                    if (!noticeMatch || !isNoticeCommandName(command)) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Usage: CR add <name>, CR update <name> [new text], or CR remove <name>. Names use lowercase letters and hyphens; reserved commands cannot be changed.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
 
-                            const updatedReply = imageUpdateMatch[1]?.trim();
-                            const result = await updateCrImage('examtime', savedImagePath, updatedReply);
-                            if (!result.updated) {
-                                await unlink(new URL(savedImagePath, import.meta.url)).catch(() => {});
-                                savedImagePath = undefined;
+                    if (action === 'add') {
+                        if (suppliedReply || imageMessage) {
+                            await sock.sendMessage(
+                                senderJid,
+                                { text: 'CR add creates an empty notice. Use CR update <name> with text and/or an attached or quoted image.' },
+                                { quoted: m }
+                            );
+                            continue;
+                        }
+                        try {
+                            const added = await addCrNotice(command);
+                            await sock.sendMessage(
+                                senderJid,
+                                { text: added ? `Added empty CR ${command}. Update it with text and/or an image.` : `CR ${command} already exists.` },
+                                { quoted: m }
+                            );
+                        } catch (error) {
+                            console.error(`Could not add CR ${command}:`, error);
+                            await sock.sendMessage(senderJid, { text: 'Could not add the command. Check bot-data.json and try again.' }, { quoted: m });
+                        }
+                        continue;
+                    }
+
+                    if (action === 'remove') {
+                        try {
+                            const result = await removeCrNotice(command);
+                            if (result.removed && isManagedNoticeImage(result.previousImage)) {
+                                await unlink(new URL(result.previousImage, import.meta.url)).catch(error => {
+                                    console.error(`Could not remove the previous CR ${command} image:`, error);
+                                });
+                            }
+                            await sock.sendMessage(
+                                senderJid,
+                                { text: result.removed ? `Removed CR ${command}.` : `No custom notice named "${command}" exists.` },
+                                { quoted: m }
+                            );
+                        } catch (error) {
+                            console.error(`Could not remove CR ${command}:`, error);
+                            await sock.sendMessage(senderJid, { text: 'Could not remove the command. Check bot-data.json and try again.' }, { quoted: m });
+                        }
+                        continue;
+                    }
+
+                    if (suppliedReply === undefined && !imageMessage) {
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: 'Attach or quote a JPEG, PNG, or WebP image, or provide replacement text: CR update <name> <new text>.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    let savedImagePath;
+                    let settingsUpdated = false;
+                    try {
+                        if (imageMessage) {
+                            const extension = Object.hasOwn(NOTICE_IMAGE_EXTENSIONS, imageMessage.mimetype)
+                                ? NOTICE_IMAGE_EXTENSIONS[imageMessage.mimetype]
+                                : undefined;
+                            if (!extension) {
                                 await sock.sendMessage(
                                     senderJid,
-                                    { text: 'No existing text command named "examtime".' },
+                                    { text: 'Only JPEG, PNG, and WebP images can be saved for CR notices.' },
                                     { quoted: m }
                                 );
                                 continue;
                             }
 
-                            settingsUpdated = true;
-                            if (isManagedExamtimeImage(result.previousImage)) {
-                                await unlink(new URL(result.previousImage, import.meta.url)).catch(error => {
-                                    console.error('Could not remove the previous examtime image:', error);
-                                });
+                            const imageBuffer = await downloadMediaMessage(mediaMessage, 'buffer', {});
+                            if (!Buffer.isBuffer(imageBuffer) || imageBuffer.length === 0) {
+                                throw new Error('Downloaded notice image was empty.');
                             }
-
-                            await sock.sendMessage(
-                                senderJid,
-                                { text: updatedReply
-                                    ? 'Updated the CR examtime text and image.'
-                                    : 'Updated the CR examtime image. CR examtime will send its text and this image.' },
-                                { quoted: m }
-                            );
-                        } catch (error) {
-                            if (savedImagePath && !settingsUpdated) {
-                                await unlink(new URL(savedImagePath, import.meta.url)).catch(() => {});
-                            }
-                            console.error('Could not update the CR examtime image:', error);
-                            await sock.sendMessage(
-                                senderJid,
-                                { text: 'Could not update the CR examtime image. Check bot-data.json and try again.' },
-                                { quoted: m }
-                            );
+                            savedImagePath = `assets/cr-${command}-${randomUUID()}.${extension}`;
+                            await writeFile(new URL(savedImagePath, import.meta.url), imageBuffer, { flag: 'wx' });
                         }
-                        continue;
-                    }
 
-                    const updateMatch = text.match(
-                        /^\s*CR\s+update\s+([a-z]+(?:-[a-z]+)*)\s+([\s\S]*\S)\s*$/i
-                    );
+                        const result = await updateCrNotice(command, suppliedReply ?? '', savedImagePath);
+                        if (!result.updated) {
+                            if (savedImagePath) await unlink(new URL(savedImagePath, import.meta.url)).catch(() => {});
+                            savedImagePath = undefined;
+                            await sock.sendMessage(senderJid, { text: `No existing text command named "${command}". Use CR add ${command} first.` }, { quoted: m });
+                            continue;
+                        }
 
-                    if (!updateMatch) {
+                        settingsUpdated = true;
+                        if (isManagedNoticeImage(result.previousImage)) {
+                            await unlink(new URL(result.previousImage, import.meta.url)).catch(error => {
+                                console.error(`Could not remove the previous CR ${command} image:`, error);
+                            });
+                        }
                         await sock.sendMessage(
                             senderJid,
-                            { text: 'Usage: CR update <command> <new text>, or attach an image with the caption `CR update examtime`.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-
-                    const command = updateMatch[1].toLowerCase();
-                    try {
-                        const updated = await updateCrReply(command, updateMatch[2].trim());
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: updated
-                                ? `Updated CR ${command}. The new reply is active immediately.`
-                                : `No existing text command named "${command}".` },
+                            { text: `Updated CR ${command}. ${savedImagePath ? 'It now has an image' : 'Its image was cleared'}${suppliedReply ? ' and replacement text' : ' and no caption'}.` },
                             { quoted: m }
                         );
                     } catch (error) {
+                        if (savedImagePath && !settingsUpdated) await unlink(new URL(savedImagePath, import.meta.url)).catch(() => {});
                         console.error(`Could not update CR ${command}:`, error);
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: 'Could not update the command. Check bot-data.json and try again.' },
-                            { quoted: m }
-                        );
+                        await sock.sendMessage(senderJid, { text: 'Could not update the command. Check bot-data.json and try again.' }, { quoted: m });
                     }
                     continue;
                 }
@@ -1990,28 +2036,28 @@ async function startBot() {
                 const imagePath = crReplies.images[chainedCommand];
 
                 if (imagePath) {
-                    const reply = crReplies.commands[chainedCommand] || crReplies.default;
+                    const reply = Object.hasOwn(crReplies.commands, chainedCommand)
+                        ? crReplies.commands[chainedCommand]
+                        : crReplies.default;
                     try {
                         const image = await readFile(new URL(imagePath, import.meta.url));
-                        if (chainedCommand === 'examtime') {
-                            await sock.sendMessage(
-                                senderJid,
-                                { image, caption: reply },
-                                { quoted: m }
-                            );
-                        } else {
-                            await sock.sendMessage(senderJid, { image }, { quoted: m });
-                        }
+                        await sock.sendMessage(
+                            senderJid,
+                            { image, ...(reply ? { caption: reply } : {}) },
+                            { quoted: m }
+                        );
                     } catch (error) {
                         console.error(`Could not send image for CR ${chainedCommand}:`, error);
-                        if (chainedCommand === 'examtime') {
+                        if (reply) {
                             await sock.sendMessage(senderJid, { text: reply }, { quoted: m });
                         }
                     }
                     continue;
                 }
 
-                const reply = crReplies.commands[chainedCommand] || crReplies.default;
+                const reply = Object.hasOwn(crReplies.commands, chainedCommand)
+                    ? crReplies.commands[chainedCommand]
+                    : crReplies.default;
 
                 await sock.sendMessage(
                     senderJid,
