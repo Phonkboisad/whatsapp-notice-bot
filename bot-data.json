@@ -6,13 +6,15 @@
     "special": "Special announcements will be added soon.",
     "assignment": "DS Assignment: Previous Year Q Soln\n✪ হাতে লিখে করা লাগবে।\n✪ জমাদানের তারিখ: ০৪/১০/২০২৬ DS এক্সামের পর পরই।\n✪ A4 page Both side\n✪ কার প্রশ্ন কোনটা:\n1. Sp-26 যাদের আইডির লাস্ট ডিজিট {0,4,8}\n2. Sp-25 যাদের আইডির লাস্ট ডিজিট {2,6}\n3. Au-25 যাদের আইডির লাস্ট ডিজিট {3,7}\n4. Sp-24 যাদের আইডির লাস্ট ডিজিট {1,5,9}",
     "classtest": "Classtest details will be added soon.",
-    "labreport": "Pending Labreport : \n Lab report 2,3 (DLD)"
+    "labreport": "Pending Labreport : \n Lab report 2,3 (DLD)",
+    "labtest": ""
   },
   "images": {
     "bus-class": "assets/bus-class.jpg",
     "bus-exam": "assets/bus-exam.jpg",
     "bus-friday": "assets/bus-friday.jpg",
-    "examtime": "assets/examtime-1809c548-375a-409f-bd6c-475ea106c094.jpg"
+    "examtime": "assets/examtime-1809c548-375a-409f-bd6c-475ea106c094.jpg",
+    "labtest": "assets/cr-labtest-0ac36285-2a47-4590-b607-a67419aaa16e.jpg"
   },
   "resources": [
     {
