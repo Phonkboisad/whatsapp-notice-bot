@@ -43,11 +43,18 @@ const GIPHY_REQUEST_TIMEOUT_MS = 15_000;
 const GIPHY_API_MAX_RESPONSE_BYTES = 64 * 1024;
 const GIPHY_MEDIA_MAX_BYTES = 8 * 1024 * 1024;
 const GIPHY_MAX_REDIRECTS = 3;
+const MAX_LATEST_NOTICES = 5;
 const RESERVED_CR_COMMANDS = new Set([
-    'add', 'admin', 'block', 'dig', 'echo', 'games', 'help', 'hunt', 'leaderboard',
-    'menu', 'meme', 'mod', 'myid', 'quiz', 'remove', 'rsrc', 'run', 'score', 'start',
-    'stop', 'transfer', 'unblock', 'update', 'wallet'
+    'add', 'admin', 'block', 'ct', 'deadline', 'deadlines', 'dig', 'echo', 'game',
+    'games', 'help', 'hunt', 'latest', 'leaderboard', 'menu', 'meme', 'mod', 'myid',
+    'quiz', 'remove', 'rsrc', 'run', 'score', 'start', 'stop', 'transfer', 'unblock',
+    'update', 'wallet'
 ]);
+const PUBLIC_BUILTIN_COMMANDS = [
+    'help', 'menu', 'myid', 'rsrc', 'games', 'game', 'hunt', 'dig', 'wallet',
+    'leaderboard', 'transfer', 'quiz', 'score', 'meme', 'ct', 'deadline',
+    'deadlines', 'latest'
+];
 let repliesEnabled = true;
 let botDataUpdateQueue = Promise.resolve();
 let botStateUpdateQueue = Promise.resolve();
@@ -58,7 +65,9 @@ let botState = {
     gameAccounts: {},
     modGroupJids: [MOD_GROUP_JID],
     blockedCrUserJids: [],
-    botAdminUserJids: []
+    botAdminUserJids: [],
+    deadlines: [],
+    latestNotices: []
 };
 const resourceSelectionState = new Map();
 const activeQuizRounds = new Map();
@@ -76,6 +85,51 @@ function isNoticeCommandName(value) {
     return typeof value === 'string' &&
         /^[a-z]+(?:-[a-z]+)*$/i.test(value) &&
         !RESERVED_CR_COMMANDS.has(value.toLowerCase());
+}
+
+function getLevenshteinDistance(a, b) {
+    const left = a.toLowerCase();
+    const right = b.toLowerCase();
+    const matrix = Array.from({ length: left.length + 1 }, (_, i) => [i]);
+    for (let j = 1; j <= right.length; j++) matrix[0][j] = j;
+
+    for (let i = 1; i <= left.length; i++) {
+        for (let j = 1; j <= right.length; j++) {
+            const cost = left[i - 1] === right[j - 1] ? 0 : 1;
+            matrix[i][j] = Math.min(
+                matrix[i - 1][j] + 1,
+                matrix[i][j - 1] + 1,
+                matrix[i - 1][j - 1] + cost
+            );
+        }
+    }
+    return matrix[left.length][right.length];
+}
+
+function findClosestCommand(input, validCommands) {
+    const target = input.toLowerCase();
+    let bestMatch;
+    let bestScore = Infinity;
+
+    for (const candidate of validCommands) {
+        const lowerCandidate = candidate.toLowerCase();
+        if (lowerCandidate.startsWith(target) || target.startsWith(lowerCandidate)) {
+            const lengthDiff = Math.abs(lowerCandidate.length - target.length);
+            if (lengthDiff <= 3 && lengthDiff < bestScore) {
+                bestScore = lengthDiff;
+                bestMatch = candidate;
+                continue;
+            }
+        }
+        const distance = getLevenshteinDistance(target, lowerCandidate);
+        const maxAllowed = target.length <= 4 ? 1 : 2;
+        if (distance <= maxAllowed && distance < bestScore) {
+            bestScore = distance;
+            bestMatch = candidate;
+        }
+    }
+
+    return bestMatch;
 }
 
 async function fetchHttpsResponse(urlValue, options, sameOriginRedirectsOnly = false) {
@@ -315,6 +369,18 @@ function isValidQuizQuestion(question) {
         typeof question.explanation === 'string' && question.explanation.trim();
 }
 
+function isValidDeadlineItem(item) {
+    return isRecord(item) &&
+        typeof item.title === 'string' && item.title.trim() &&
+        Number.isFinite(item.timestamp) && item.timestamp > 0;
+}
+
+function isValidLatestNoticeItem(item) {
+    return isRecord(item) &&
+        typeof item.text === 'string' && item.text.trim() &&
+        Number.isFinite(item.timestamp) && item.timestamp > 0;
+}
+
 function runShellCommand(command) {
     return new Promise(resolve => {
         const child = spawn(command, {
@@ -404,6 +470,12 @@ function ensureBotStateLoaded() {
                 const botAdminUserJids = Array.isArray(data?.botAdminUserJids)
                     ? [...new Set(data.botAdminUserJids.map(normalizeBlockedUserJid).filter(Boolean))]
                     : [...INITIAL_BOT_ADMIN_USER_JIDS];
+                const deadlines = Array.isArray(data?.deadlines)
+                    ? data.deadlines.filter(isValidDeadlineItem)
+                    : [];
+                const latestNotices = Array.isArray(data?.latestNotices)
+                    ? data.latestNotices.filter(isValidLatestNoticeItem).slice(0, MAX_LATEST_NOTICES)
+                    : [];
 
                 for (const [groupJid, groupScores] of Object.entries(scores)) {
                     if (!isRecord(groupScores)) continue;
@@ -440,7 +512,9 @@ function ensureBotStateLoaded() {
                     gameAccounts,
                     modGroupJids: [...new Set([MOD_GROUP_JID, ...configuredModGroups])],
                     blockedCrUserJids,
-                    botAdminUserJids
+                    botAdminUserJids,
+                    deadlines,
+                    latestNotices
                 };
             } catch (error) {
                 if (error.code !== 'ENOENT') {
@@ -452,7 +526,9 @@ function ensureBotStateLoaded() {
                     gameAccounts: {},
                     modGroupJids: [MOD_GROUP_JID],
                     blockedCrUserJids: [],
-                    botAdminUserJids: [...INITIAL_BOT_ADMIN_USER_JIDS]
+                    botAdminUserJids: [...INITIAL_BOT_ADMIN_USER_JIDS],
+                    deadlines: [],
+                    latestNotices: []
                 };
             }
         })();
@@ -538,6 +614,117 @@ function getQuizParticipantId(key) {
 function getMessageSenderUserJid(key, remoteJid) {
     return normalizeBlockedUserJid(getQuizParticipantId(key)) ||
         normalizeBlockedUserJid(remoteJid);
+}
+
+function parseDhakaDeadlineInput(dateStr, timeStr = '09:00') {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
+    const timeMatch = /^(\d{1,2}):(\d{2})$/.exec(timeStr.trim());
+    if (!match || !timeMatch) return undefined;
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const hour = Number(timeMatch[1]);
+    const minute = Number(timeMatch[2]);
+
+    const daysInMonth = month >= 1 && month <= 12
+        ? new Date(Date.UTC(year, month, 0)).getUTCDate()
+        : 0;
+    if (
+        month < 1 || month > 12 ||
+        day < 1 || day > daysInMonth ||
+        hour > 23 || minute > 59
+    ) {
+        return undefined;
+    }
+
+    const isoString = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+06:00`;
+    const timestamp = Date.parse(isoString);
+    return Number.isFinite(timestamp) ? timestamp : undefined;
+}
+
+function getActiveSortedDeadlines() {
+    const now = Date.now();
+    return botState.deadlines
+        .filter(item => isValidDeadlineItem(item) && item.timestamp > now)
+        .sort((a, b) => a.timestamp - b.timestamp);
+}
+
+function formatDeadlineCountdown(targetTimestamp) {
+    const diffMs = targetTimestamp - Date.now();
+    if (diffMs <= 0) return 'Now';
+
+    const totalMinutes = Math.floor(diffMs / 60_000);
+    const days = Math.floor(totalMinutes / (60 * 24));
+    const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+    const minutes = totalMinutes % 60;
+
+    if (days > 0) return `${days}d ${hours}h left`;
+    if (hours > 0) return `${hours}h ${minutes}m left`;
+    return `${Math.max(1, minutes)}m left`;
+}
+
+function formatDhakaDateTime(timestamp) {
+    return new Date(timestamp).toLocaleString('en-US', {
+        timeZone: 'Asia/Dhaka',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
+}
+
+function formatDeadlinesList() {
+    const active = getActiveSortedDeadlines();
+    if (!active.length) {
+        return '⏳ *Upcoming CTs, Exams & Deadlines*\n\nNo upcoming deadlines are scheduled right now.';
+    }
+
+    const lines = active.map((item, index) => {
+        const countdown = formatDeadlineCountdown(item.timestamp);
+        const dateLabel = formatDhakaDateTime(item.timestamp);
+        return `*${index + 1}. ${item.title}*\n   📅 ${dateLabel} — ⏳ *${countdown}*`;
+    });
+
+    return [
+        '⏳ *Upcoming CTs, Exams & Deadlines*',
+        '',
+        ...lines
+    ].join('\n\n');
+}
+
+function formatLatestNoticesList() {
+    if (!botState.latestNotices.length) {
+        return '📌 *Latest Official Notices*\n\nNo recent notices have been recorded yet.';
+    }
+
+    const lines = botState.latestNotices.map((notice, index) => {
+        const dateLabel = formatDhakaDateTime(notice.timestamp);
+        return `*${index + 1}. [${dateLabel}]*\n${notice.text}`;
+    });
+
+    return [
+        `📌 *Latest ${botState.latestNotices.length} Official Notice${botState.latestNotices.length === 1 ? '' : 's'}*`,
+        '',
+        ...lines
+    ].join('\n\n');
+}
+
+async function recordLatestNotice(text) {
+    const cleaned = typeof text === 'string' ? text.trim() : '';
+    if (!cleaned) return;
+
+    botState.latestNotices = [
+        { text: cleaned.slice(0, 1500), timestamp: Date.now() },
+        ...botState.latestNotices
+    ].slice(0, MAX_LATEST_NOTICES);
+
+    try {
+        await persistBotState();
+    } catch (error) {
+        console.error('Could not save latest notice digest:', error);
+    }
 }
 
 function formatQuizQuestion(question) {
@@ -635,20 +822,19 @@ async function finishQuizRound(sock, groupJid, round) {
     });
 }
 
+// 3A: Silent Emoji Reactions for Quiz Answers
 async function handleQuizAnswer(sock, message, groupJid, round, choice) {
     const participantId = getQuizParticipantId(message.key);
     if (!participantId) {
         await sock.sendMessage(groupJid, {
-            text: "I couldn't identify you, so your answer wasn't counted.",
-            quoted: message
+            react: { text: '⚠️', key: message.key }
         });
         return;
     }
 
     if (round.answers.has(participantId)) {
         await sock.sendMessage(groupJid, {
-            text: 'You can answer only once per round.',
-            quoted: message
+            react: { text: '🔒', key: message.key }
         });
         return;
     }
@@ -672,8 +858,7 @@ async function handleQuizAnswer(sock, message, groupJid, round, choice) {
     }
 
     await sock.sendMessage(groupJid, {
-        text: 'Answer recorded. The final result and correct answer will be revealed when the round ends.',
-        quoted: message
+        react: { text: '✅', key: message.key }
     });
 }
 
@@ -692,7 +877,7 @@ function updateCrNotice(command, reply, imagePath) {
         const previousImage = data.images[command];
         if (imagePath) data.images[command] = imagePath;
         else delete data.images[command];
-        const temporaryFile = new URL('./bot-data.json.tmp', import.meta.url);
+        const temporaryFile = new URL('./bot-state.data.tmp', import.meta.url);
 
         try {
             await writeFile(temporaryFile, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
@@ -761,11 +946,15 @@ function isManagedNoticeImage(imagePath) {
         /^assets\/(?:examtime|cr-[a-z0-9-]+)-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:jpg|png|webp)$/i.test(imagePath);
 }
 
-function getEchoSenderMention(key) {
+// 5A: Optional sender tag with clean pushName fallback instead of @unknown
+function getEchoSenderMention(key, pushName) {
     const phoneJid = [key?.participantAlt, key?.participant].find(
         jid => typeof jid === 'string' && /^\d+(?::\d+)?@s\.whatsapp\.net$/.test(jid)
     );
-    if (!phoneJid) return { text: '@unknown:', mentions: [] };
+    if (!phoneJid) {
+        const fallbackName = (pushName || 'CR').replace(/\s+/g, ' ').trim();
+        return { text: `*${fallbackName}:*`, mentions: [] };
+    }
 
     const [number] = phoneJid.split('@');
     const senderId = number.split(':')[0];
@@ -773,6 +962,19 @@ function getEchoSenderMention(key) {
         text: `@${senderId}:`,
         mentions: [`${senderId}@s.whatsapp.net`]
     };
+}
+
+// 7D: Fetch all group member JIDs for urgent -all ghost-ping
+async function getGroupParticipantJids(sock, groupJid) {
+    try {
+        const metadata = await sock.groupMetadata(groupJid);
+        return metadata.participants
+            .map(p => p.id)
+            .filter(jid => typeof jid === 'string' && jid.length > 0);
+    } catch (error) {
+        console.error('Could not fetch group participants for -all mention:', error);
+        return [];
+    }
 }
 
 function formatCrHelp({ commands, images }, showModManual) {
@@ -791,6 +993,8 @@ function formatCrHelp({ commands, images }, showModManual) {
             '• `CR` (default reply)',
             '• `CR help`',
             '• `CR menu` (academic info, bus schedules, resources, and games)',
+            '• `CR latest` (view the last 5 official notices)',
+            '• `CR ct` or `CR deadline` (live countdown to upcoming exams/deadlines)',
             '• `CR myid` (show your WhatsApp JID)',
             textCommands,
             '',
@@ -819,8 +1023,15 @@ function formatCrHelp({ commands, images }, showModManual) {
         '• `CR` (default reply)',
         '• `CR help`',
         '• `CR menu` (academic info, bus schedules, resources, and games)',
+        '• `CR latest` (view the last 5 official notices)',
+        '• `CR ct` or `CR deadline` (view live countdowns)',
         '• `CR myid` (show your WhatsApp JID)',
         textCommands,
+        '',
+        '⏳ *Deadlines & CTs (Mod & Admin)*',
+        '• `CR deadline add YYYY-MM-DD [HH:MM] | <title>`',
+        '• `CR deadline remove <number>`',
+        '• `CR deadline clear`',
         '',
         '📚 *Resources*',
         '• `CR rsrc` (browse resources)',
@@ -845,8 +1056,8 @@ function formatCrHelp({ commands, images }, showModManual) {
         '• `CR update <name>` with a JPEG, PNG, or WebP attachment/quoted image (replaces it with image only)',
         '• `CR update <name> <caption>` with an attachment/quoted image (replaces it with both)',
         '• `CR remove <name>`',
-        '• `CR echo notice [text]` (or echo a caption/attachment)',
-        '• `CR echo discussion [text]` (or echo a caption/attachment)',
+        '• `CR echo notice [-t] [-all] [text]` (clean broadcast; `-t` tags sender, `-all` ghost-pings group)',
+        '• `CR echo discussion [-t] [-all] [text]` (clean broadcast; `-t` tags sender, `-all` ghost-pings group)',
         '',
         '*Bot admins only*',
         '• `CR admin add <phone number, JID, or @mention>`',
@@ -877,6 +1088,10 @@ function formatCrMenu({ commands, images, resources }) {
 
     return [
         '🧭 *CSE Quick Menu*',
+        '',
+        '📌 *Notices & Countdowns*',
+        '• `CR latest` — view the last 5 official notices',
+        '• `CR ct` or `CR deadline` — live exam & assignment countdowns',
         '',
         '🎓 *Academic information*',
         ...(academicCommands.length
@@ -1039,7 +1254,94 @@ async function startBot() {
                 continue;
             }
 
+            if (/^\s*CR\s+(?:deadline|deadlines|ct)\s+(?:add|remove|clear)(?:\s|$)/i.test(text) && !canManageBot) {
+                await sock.sendMessage(
+                    senderJid,
+                    { text: 'Only configured mod groups and bot admins can add, remove, or clear deadlines.' },
+                    { quoted: m }
+                );
+                continue;
+            }
+
             if (canManageBot) {
+                // 7A: Manage Deadlines / CTs (add, remove, clear)
+                if (/^\s*CR\s+(?:deadline|deadlines|ct)\s+(?:add|remove|clear)(?:\s|$)/i.test(text)) {
+                    const actionMatch = text.match(
+                        /^\s*CR\s+(?:deadline|deadlines|ct)\s+(add|remove|clear)(?:\s+([\s\S]*))?\s*$/i
+                    );
+                    const action = actionMatch?.[1]?.toLowerCase();
+                    const rest = actionMatch?.[2]?.trim() || '';
+
+                    if (action === 'clear') {
+                        botState.deadlines = [];
+                        await persistBotState();
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: '🗑️ Cleared all scheduled deadlines and CTs.' },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    if (action === 'remove') {
+                        const indexNum = /^\d+$/.test(rest) ? Number(rest) : -1;
+                        const active = getActiveSortedDeadlines();
+                        if (indexNum < 1 || indexNum > active.length) {
+                            await sock.sendMessage(
+                                senderJid,
+                                { text: `Usage: \`CR deadline remove <number>\` (1 to ${active.length || 1}). View numbers with \`CR deadline\`.` },
+                                { quoted: m }
+                            );
+                            continue;
+                        }
+                        const removedItem = active[indexNum - 1];
+                        botState.deadlines = active.filter((_, idx) => idx !== indexNum - 1);
+                        await persistBotState();
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: `✅ Removed deadline: *${removedItem.title}*` },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+
+                    if (action === 'add') {
+                        const addParts = rest.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{1,2}:\d{2}))?\s*\|\s*(.+)$/);
+                        if (!addParts) {
+                            await sock.sendMessage(
+                                senderJid,
+                                { text: 'Usage: `CR deadline add YYYY-MM-DD [HH:MM] | <Title>`\nExample: `CR deadline add 2026-10-25 10:30 | CSE-2101 CT-2 (Linked Lists)`' },
+                                { quoted: m }
+                            );
+                            continue;
+                        }
+
+                        const timestamp = parseDhakaDeadlineInput(addParts[1], addParts[2] || '09:00');
+                        const title = addParts[3].trim().replace(/\s+/g, ' ').slice(0, 120);
+                        if (!timestamp || timestamp <= Date.now() || !title) {
+                            await sock.sendMessage(
+                                senderJid,
+                                { text: 'Please provide a valid future date/time (Asia/Dhaka) and title.' },
+                                { quoted: m }
+                            );
+                            continue;
+                        }
+
+                        botState.deadlines = [
+                            ...getActiveSortedDeadlines(),
+                            { id: randomUUID(), title, timestamp }
+                        ].sort((a, b) => a.timestamp - b.timestamp);
+
+                        await persistBotState();
+                        await sock.sendMessage(
+                            senderJid,
+                            { text: `✅ Added deadline: *${title}*\n📅 ${formatDhakaDateTime(timestamp)} (⏳ ${formatDeadlineCountdown(timestamp)})` },
+                            { quoted: m }
+                        );
+                        continue;
+                    }
+                }
+
                 if (/^\s*CR\s+rsrc\s+set(?:\s|$)/i.test(text)) {
                     const resourceUpdateMatch = text.match(
                         /^\s*CR\s+rsrc\s+set\s+([\s\S]+?)\s+(https?:\/\/\S+)\s*$/i
@@ -1541,15 +1843,34 @@ async function startBot() {
                     continue;
                 }
 
+                // 5A + 7B + 7D: Upgraded CR echo (clean by default, -t sender tag, -all ghost-ping, and auto-digest)
                 const echoMatch = text.match(
-                    /^\s*CR\s+echo\s+(notice|discussion)(?:\s+(?:"([\s\S]*)"|([\s\S]*\S)))?\s*$/i
+                    /^\s*CR\s+echo\s+(notice|discussion)((?:\s+-(?:t|all))*)(?:\s+(?:"([\s\S]*)"|([\s\S]*\S)))?\s*$/i
                 );
                 if (echoMatch) {
-                    const targetJid = echoMatch[1].toLowerCase() === 'notice'
+                    const targetName = echoMatch[1].toLowerCase();
+                    const targetJid = targetName === 'notice'
                         ? NOTICE_GROUP_JID
                         : DISCUSSION_GROUP_JID;
-                    const echoText = echoMatch[2] ?? echoMatch[3];
-                    const senderMention = getEchoSenderMention(m.key);
+                    const flagsRaw = echoMatch[2] || '';
+                    const includeSenderTag = /(?:^|\s)-t(?:\s|$)/i.test(flagsRaw);
+                    const includeAllMentions = /(?:^|\s)-all(?:\s|$)/i.test(flagsRaw);
+                    const echoText = echoMatch[3] ?? echoMatch[4];
+
+                    const senderMention = includeSenderTag
+                        ? getEchoSenderMention(m.key, m.pushName)
+                        : { text: '', mentions: [] };
+                    const allGroupJids = includeAllMentions
+                        ? await getGroupParticipantJids(sock, targetJid)
+                        : [];
+                    const combinedMentions = [...new Set([...senderMention.mentions, ...allGroupJids])];
+
+                    const formatEchoBody = bodyText => {
+                        if (includeSenderTag && bodyText) return `${senderMention.text} ${bodyText}`;
+                        if (includeSenderTag) return senderMention.text;
+                        return bodyText || '';
+                    };
+
                     const contextInfo = message.extendedTextMessage?.contextInfo;
                     const quotedMessage = contextInfo?.quotedMessage;
                     const quotedContent = normalizeMessageContent(quotedMessage) || quotedMessage;
@@ -1571,10 +1892,11 @@ async function startBot() {
                             'documentMessage'
                         ].find(type => message[type]?.caption !== undefined);
 
-                        if (!mediaType) {
+                        const headerText = formatEchoBody('');
+                        if (!mediaType && (headerText || combinedMentions.length)) {
                             await sock.sendMessage(targetJid, {
-                                text: senderMention.text,
-                                mentions: senderMention.mentions
+                                text: headerText || '📢',
+                                mentions: combinedMentions
                             });
                         }
 
@@ -1585,8 +1907,8 @@ async function startBot() {
                                 const sourceMedia = message[mediaType];
                                 const editContent = {
                                     [mediaType.replace('Message', '').toLowerCase()]: mediaBuffer,
-                                    caption: `${senderMention.text}${echoText ? ` ${echoText}` : ''}`,
-                                    mentions: senderMention.mentions,
+                                    caption: formatEchoBody(echoText),
+                                    mentions: combinedMentions,
                                     edit: forwardedMessage.key
                                 };
 
@@ -1608,11 +1930,18 @@ async function startBot() {
                                 );
                             }
                         }
+
+                        if (targetName === 'notice') {
+                            await recordLatestNotice(echoText || '📎 Media announcement posted in Notice group.');
+                        }
                     } else if (quotedMessageHasMedia) {
-                        await sock.sendMessage(targetJid, {
-                            text: senderMention.text,
-                            mentions: senderMention.mentions
-                        });
+                        const headerText = formatEchoBody(echoText);
+                        if (headerText || combinedMentions.length) {
+                            await sock.sendMessage(targetJid, {
+                                text: headerText || '📢',
+                                mentions: combinedMentions
+                            });
+                        }
                         await sock.sendMessage(targetJid, {
                             forward: {
                                 key: {
@@ -1623,15 +1952,28 @@ async function startBot() {
                                 message: quotedMessage
                             }
                         });
+
+                        if (targetName === 'notice') {
+                            const quotedCaption =
+                                quotedContent?.imageMessage?.caption ||
+                                quotedContent?.videoMessage?.caption ||
+                                quotedContent?.documentMessage?.caption ||
+                                '';
+                            await recordLatestNotice(echoText || quotedCaption || '📎 Media announcement posted in Notice group.');
+                        }
                     } else if (echoText !== undefined) {
                         await sock.sendMessage(targetJid, {
-                            text: `${senderMention.text} ${echoText}`,
-                            mentions: senderMention.mentions
+                            text: formatEchoBody(echoText),
+                            mentions: combinedMentions
                         });
+
+                        if (targetName === 'notice') {
+                            await recordLatestNotice(echoText);
+                        }
                     } else {
                         await sock.sendMessage(
                             senderJid,
-                            { text: 'Attach a file or reply to a message with an attachment.' },
+                            { text: 'Usage: `CR echo notice [-t] [-all] <text>` or attach/reply to a media file.' },
                             { quoted: m }
                         );
                         continue;
@@ -1639,7 +1981,7 @@ async function startBot() {
 
                     await sock.sendMessage(
                         senderJid,
-                        { text: `Message sent to the ${echoMatch[1].toLowerCase()} group.` },
+                        { text: `Message sent to the ${targetName} group${includeAllMentions ? ' (with @all notification)' : ''}.` },
                         { quoted: m }
                     );
                     continue;
@@ -1682,389 +2024,457 @@ async function startBot() {
                 }
             }
 
-            const commandMatch = text.match(/\bCR\b(?:\s+([a-z]+(?:-[a-z]+)*))?/i);
-            if (commandMatch) {
-                const chainedCommand = commandMatch[1]?.toLowerCase();
-                const crReplies = await loadCrReplies();
+            // 1B: Smart CR Command Detection (Exact standalone, validated mid-sentence, typo suggestion at start)
+            const startsWithCr = /^\s*CR(?:\s|$)/i.test(text);
+            const exactBareCr = /^\s*CR\s*$/i.test(text);
+            const startCommandMatch = text.match(/^\s*CR\s+([a-z0-9-]+)(?:\s|$)/i);
+            const midSentenceMatch = !startsWithCr ? text.match(/\bCR\s+([a-z]+(?:-[a-z]+)*)\b/i) : null;
 
-                if (chainedCommand === 'help') {
+            if (!exactBareCr && !startCommandMatch && !midSentenceMatch) continue;
+
+            const crReplies = await loadCrReplies();
+            const validCustomCommands = [
+                ...Object.keys(crReplies.commands),
+                ...Object.keys(crReplies.images)
+            ];
+            const allKnownCommands = new Set([
+                ...PUBLIC_BUILTIN_COMMANDS,
+                ...validCustomCommands.map(c => c.toLowerCase())
+            ]);
+
+            if (exactBareCr) {
+                await sock.sendMessage(
+                    senderJid,
+                    { text: crReplies.default },
+                    { quoted: m }
+                );
+                continue;
+            }
+
+            const candidateCommand = (startCommandMatch?.[1] || midSentenceMatch?.[1] || '').toLowerCase();
+
+            // If CR was mentioned mid-sentence, ignore unless the word right after CR is a real command
+            if (!startsWithCr && !allKnownCommands.has(candidateCommand)) {
+                continue;
+            }
+
+            // If message starts with "CR <unknown_word>", suggest the closest valid command
+            if (startsWithCr && !allKnownCommands.has(candidateCommand)) {
+                const suggestion = findClosestCommand(candidateCommand, [...allKnownCommands]);
+                const suggestionText = suggestion
+                    ? `Unknown command \`CR ${candidateCommand}\`. Did you mean \`CR ${suggestion}\`?\nUse \`CR menu\` or \`CR help\` to see all commands.`
+                    : `Unknown command \`CR ${candidateCommand}\`. Use \`CR menu\` or \`CR help\` to see available commands.`;
+                await sock.sendMessage(
+                    senderJid,
+                    { text: suggestionText },
+                    { quoted: m }
+                );
+                continue;
+            }
+
+            const chainedCommand = candidateCommand;
+
+            if (chainedCommand === 'help') {
+                await sock.sendMessage(
+                    senderJid,
+                    { text: formatCrHelp(
+                        crReplies,
+                        senderJid !== DISCUSSION_GROUP_JID && (isModGroup || isBotAdmin)
+                    ) },
+                    { quoted: m }
+                );
+                continue;
+            }
+
+            if (chainedCommand === 'menu') {
+                const resources = crReplies.resources.filter(
+                    resource => isRecord(resource) &&
+                        typeof resource.subject === 'string' &&
+                        resource.subject.trim()
+                );
+                await sock.sendMessage(
+                    senderJid,
+                    { text: formatCrMenu({ ...crReplies, resources }) },
+                    { quoted: m }
+                );
+                continue;
+            }
+
+            // 7A: View live CT / Exam / Assignment Countdowns
+            if (chainedCommand === 'ct' || chainedCommand === 'deadline' || chainedCommand === 'deadlines') {
+                await sock.sendMessage(
+                    senderJid,
+                    { text: formatDeadlinesList() },
+                    { quoted: m }
+                );
+                continue;
+            }
+
+            // 7B: View Latest 5 Official Notices
+            if (chainedCommand === 'latest') {
+                await sock.sendMessage(
+                    senderJid,
+                    { text: formatLatestNoticesList() },
+                    { quoted: m }
+                );
+                continue;
+            }
+
+            if (chainedCommand === 'meme') {
+                if (!GIPHY_API_KEY) {
                     await sock.sendMessage(
                         senderJid,
-                        { text: formatCrHelp(
-                            crReplies,
-                            senderJid !== DISCUSSION_GROUP_JID && (isModGroup || isBotAdmin)
-                        ) },
+                        { text: 'The GIPHY meme feature is not configured yet. Ask a bot admin to set GIPHY_API_KEY.' },
                         { quoted: m }
                     );
                     continue;
                 }
 
-                if (chainedCommand === 'menu') {
-                    const resources = crReplies.resources.filter(
-                        resource => isRecord(resource) &&
-                            typeof resource.subject === 'string' &&
-                            resource.subject.trim()
-                    );
-                    await sock.sendMessage(
-                        senderJid,
-                        { text: formatCrMenu({ ...crReplies, resources }) },
-                        { quoted: m }
-                    );
-                    continue;
-                }
-
-                if (chainedCommand === 'meme') {
-                    if (!GIPHY_API_KEY) {
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: 'The GIPHY meme feature is not configured yet. Ask a bot admin to set GIPHY_API_KEY.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-
-                    try {
-                        const meme = await fetchRandomMeme();
-                        await sock.sendMessage(
-                            senderJid,
-                            {
-                                video: meme.video,
-                                mimetype: 'video/mp4',
-                                gifPlayback: true,
-                                caption: meme.caption
-                            },
-                            { quoted: m }
-                        );
-                    } catch (error) {
-                        console.error('Could not fetch or send a GIPHY GIF:', error.message);
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: 'Could not fetch a GIF right now. GIPHY may be unavailable or over its request limit; try again later.' },
-                            { quoted: m }
-                        );
-                    }
-                    continue;
-                }
-
-                if (chainedCommand === 'game' || chainedCommand === 'games') {
-                    if (!isGroupJid(senderJid) || (!isAllowedGroup && !isModGroup)) {
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: 'CSE games are available only in the configured department and mod groups.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-                    await sock.sendMessage(
-                        senderJid,
-                        { text: formatCseGameMenu() },
-                        { quoted: m }
-                    );
-                    continue;
-                }
-
-                if (GAME_TYPES.includes(chainedCommand)) {
-                    if (!isGroupJid(senderJid) || (!isAllowedGroup && !isModGroup)) {
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: 'CSE games are available only in the configured department and mod groups.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-                    if (!senderUserJid) {
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: 'Could not identify your WhatsApp account, so this game turn was not counted.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-
-                    try {
-                        const result = await playCseGame(
-                            senderJid,
-                            senderUserJid,
-                            m.pushName,
-                            chainedCommand
-                        );
-                        const response = result.played
-                            ? `${result.outcome.emoji} ${result.outcome.text}\n+${result.outcome.points} 🪙 CSE Coins\n👛 Wallet: ${result.balance} 🪙\n🎯 ${GAME_DAILY_ATTEMPT_LIMIT - result.attempts} ${chainedCommand} tries left today.`
-                            : `🎯 You've used all ${GAME_DAILY_ATTEMPT_LIMIT} ${chainedCommand} tries for today.\n👛 Wallet: ${result.balance} 🪙`;
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: response },
-                            { quoted: m }
-                        );
-                    } catch (error) {
-                        console.error(`Could not run the CSE ${chainedCommand} game:`, error);
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: 'Could not save your game result. Your turn was not counted; try again.' },
-                            { quoted: m }
-                        );
-                    }
-                    continue;
-                }
-
-                if (chainedCommand === 'wallet') {
-                    if (!isGroupJid(senderJid) || (!isAllowedGroup && !isModGroup)) {
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: '👛 CSE Coin wallets are available only in the configured department and mod groups.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-                    if (!senderUserJid) {
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: 'Could not identify your WhatsApp account.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-
-                    const account = botState.gameAccounts[senderJid]?.[senderUserJid];
-                    const daily = account?.daily?.date === getLocalDayKey()
-                        ? account.daily
-                        : { hunt: 0, dig: 0 };
+                try {
+                    const meme = await fetchRandomMeme();
                     await sock.sendMessage(
                         senderJid,
                         {
-                            text: [
-                                `👛 *${sanitizeGameName(m.pushName) || account?.name || 'Your'} CSE Coin wallet*`,
-                                `🪙 Balance: ${account?.balance || 0} CSE Coins.`,
-                                `🏹 Hunt tries today: ${daily.hunt}/${GAME_DAILY_ATTEMPT_LIMIT}.`,
-                                `⛏️ Dig tries today: ${daily.dig}/${GAME_DAILY_ATTEMPT_LIMIT}.`
-                            ].join('\n')
+                            video: meme.video,
+                            mimetype: 'video/mp4',
+                            gifPlayback: true,
+                            caption: meme.caption
+                        },
+                        { quoted: m }
+                    );
+                } catch (error) {
+                    console.error('Could not fetch or send a GIPHY GIF:', error.message);
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: 'Could not fetch a GIF right now. GIPHY may be unavailable or over its request limit; try again later.' },
+                        { quoted: m }
+                    );
+                }
+                continue;
+            }
+
+            if (chainedCommand === 'game' || chainedCommand === 'games') {
+                if (!isGroupJid(senderJid) || (!isAllowedGroup && !isModGroup)) {
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: 'CSE games are available only in the configured department and mod groups.' },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+                await sock.sendMessage(
+                    senderJid,
+                    { text: formatCseGameMenu() },
+                    { quoted: m }
+                );
+                continue;
+            }
+
+            // 6A: Clean +/- formatting for CSE Coin outcomes
+            if (GAME_TYPES.includes(chainedCommand)) {
+                if (!isGroupJid(senderJid) || (!isAllowedGroup && !isModGroup)) {
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: 'CSE games are available only in the configured department and mod groups.' },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+                if (!senderUserJid) {
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: 'Could not identify your WhatsApp account, so this game turn was not counted.' },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+
+                try {
+                    const result = await playCseGame(
+                        senderJid,
+                        senderUserJid,
+                        m.pushName,
+                        chainedCommand
+                    );
+                    const pointsFormatted = result.outcome?.points >= 0
+                        ? `+${result.outcome.points}`
+                        : `${result.outcome?.points ?? 0}`;
+                    const response = result.played
+                        ? `${result.outcome.emoji} ${result.outcome.text}\n${pointsFormatted} 🪙 CSE Coins\n👛 Wallet: ${result.balance} 🪙\n🎯 ${GAME_DAILY_ATTEMPT_LIMIT - result.attempts} ${chainedCommand} tries left today.`
+                        : `🎯 You've used all ${GAME_DAILY_ATTEMPT_LIMIT} ${chainedCommand} tries for today.\n👛 Wallet: ${result.balance} 🪙`;
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: response },
+                        { quoted: m }
+                    );
+                } catch (error) {
+                    console.error(`Could not run the CSE ${chainedCommand} game:`, error);
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: 'Could not save your game result. Your turn was not counted; try again.' },
+                        { quoted: m }
+                    );
+                }
+                continue;
+            }
+
+            if (chainedCommand === 'wallet') {
+                if (!isGroupJid(senderJid) || (!isAllowedGroup && !isModGroup)) {
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: '👛 CSE Coin wallets are available only in the configured department and mod groups.' },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+                if (!senderUserJid) {
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: 'Could not identify your WhatsApp account.' },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+
+                const account = botState.gameAccounts[senderJid]?.[senderUserJid];
+                const daily = account?.daily?.date === getLocalDayKey()
+                    ? account.daily
+                    : { hunt: 0, dig: 0 };
+                await sock.sendMessage(
+                    senderJid,
+                    {
+                        text: [
+                            `👛 *${sanitizeGameName(m.pushName) || account?.name || 'Your'} CSE Coin wallet*`,
+                            `🪙 Balance: ${account?.balance || 0} CSE Coins.`,
+                            `🏹 Hunt tries today: ${daily.hunt}/${GAME_DAILY_ATTEMPT_LIMIT}.`,
+                            `⛏️ Dig tries today: ${daily.dig}/${GAME_DAILY_ATTEMPT_LIMIT}.`
+                        ].join('\n')
+                    },
+                    { quoted: m }
+                );
+                continue;
+            }
+
+            if (chainedCommand === 'leaderboard') {
+                if (!isGroupJid(senderJid) || (!isAllowedGroup && !isModGroup)) {
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: '🏆 The CSE Coin leaderboard is available only in the configured department and mod groups.' },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+                await sock.sendMessage(
+                    senderJid,
+                    { text: formatCseLeaderboard(botState.gameAccounts[senderJid]) },
+                    { quoted: m }
+                );
+                continue;
+            }
+
+            if (chainedCommand === 'transfer') {
+                if (!isGroupJid(senderJid) || (!isAllowedGroup && !isModGroup)) {
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: '🪙 CSE Coin transfers are available only in the configured department and mod groups.' },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+                if (!senderUserJid) {
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: 'Could not identify your WhatsApp account.' },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+
+                const transferMatch = text.match(/^\s*CR\s+transfer\s+(@\S+)\s+(\d+)\s*$/i);
+                const mentionedJids = message.extendedTextMessage?.contextInfo?.mentionedJid || [];
+                const recipientJid = transferMatch && mentionedJids.length === 1
+                    ? normalizeBlockedUserJid(mentionedJids[0])
+                    : undefined;
+                const amount = transferMatch ? Number(transferMatch[2]) : 0;
+                if (!recipientJid || !Number.isSafeInteger(amount) || amount <= 0) {
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: 'Usage: `CR transfer @mention <positive whole-number amount>`. Mention exactly one group member.' },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+
+                try {
+                    const result = await transferGamePoints(
+                        senderJid,
+                        senderUserJid,
+                        recipientJid,
+                        m.pushName,
+                        amount
+                    );
+                    const response = result.transferred
+                        ? `💸 Transferred ${amount} 🪙 CSE Coins to the member you mentioned.\n👛 Your balance is now ${result.senderBalance} 🪙.`
+                        : result.reason === 'self'
+                            ? '🚫 You cannot transfer CSE Coins to yourself.'
+                            : result.reason === 'insufficient'
+                                ? `🚫 You only have ${result.balance} 🪙 CSE Coins, so you cannot transfer ${amount}.`
+                                : '🚫 That transfer would exceed the recipient wallet limit.';
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: response },
+                        { quoted: m }
+                    );
+                } catch (error) {
+                    console.error('Could not transfer CSE game points:', error);
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: 'Could not save the transfer. No points were transferred; try again.' },
+                        { quoted: m }
+                    );
+                }
+                continue;
+            }
+
+            if (chainedCommand === 'quiz') {
+                if (senderJid !== DISCUSSION_GROUP_JID && !isModGroup && !isBotAdmin) {
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: 'The quiz is available only in the Discussion group and configured mod groups.' },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+
+                if (activeQuizRounds.has(senderJid)) {
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: 'A quiz is already in progress. Reply with 1, 2, or 3.' },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+
+                if (!crReplies.quizQuestions.length) {
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: 'There are no valid quiz questions. Check bot-data.json.' },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+
+                const previousQuestionHistory = botState.quizQuestionHistory;
+                const question = selectNextQuizQuestion(crReplies.quizQuestions);
+                try {
+                    await persistBotState();
+                } catch (error) {
+                    botState.quizQuestionHistory = previousQuestionHistory;
+                    console.error('Could not save quiz question history:', error);
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: 'The quiz could not start. Please try again.' },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+
+                const round = { question, answers: new Map() };
+                activeQuizRounds.set(senderJid, round);
+                resourceSelectionState.delete(senderJid);
+                setTimeout(() => {
+                    finishQuizRound(sock, senderJid, round).catch(error => {
+                        console.error('Could not finish the quiz round:', error);
+                    });
+                }, QUIZ_DURATION_MS);
+
+                await sock.sendMessage(senderJid, { text: formatQuizQuestion(question) });
+                continue;
+            }
+
+            if (chainedCommand === 'score') {
+                const scores = botState.quizScores[senderJid] || {};
+                const response = senderJid === DISCUSSION_GROUP_JID || isModGroup || isBotAdmin
+                    ? formatQuizScoreboard(scores)
+                    : 'Quiz scores are available only in the Discussion group and configured mod groups.';
+                await sock.sendMessage(senderJid, { text: response }, { quoted: m });
+                continue;
+            }
+
+            if (chainedCommand === 'rsrc') {
+                const resources = crReplies.resources.filter(
+                    resource => isRecord(resource) &&
+                        typeof resource.subject === 'string' &&
+                        resource.subject.trim()
+                );
+                if (!resources.length) {
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: 'No resources available right now.' },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+
+                const requestedSubject = text.match(
+                    /^\s*CR\s+rsrc(?:\s+([\s\S]*?))?\s*$/i
+                )?.[1]?.trim();
+                if (requestedSubject) {
+                    const requestedResource = resources.find(
+                        resource => resource.subject.trim().toLowerCase() === requestedSubject.toLowerCase()
+                    );
+                    await sock.sendMessage(
+                        senderJid,
+                        {
+                            text: requestedResource
+                                ? formatResourceReply(requestedResource)
+                                : `I couldn't find "${requestedSubject}". Browse subjects with \`CR rsrc\`.`
                         },
                         { quoted: m }
                     );
                     continue;
                 }
 
-                if (chainedCommand === 'leaderboard') {
-                    if (!isGroupJid(senderJid) || (!isAllowedGroup && !isModGroup)) {
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: '🏆 The CSE Coin leaderboard is available only in the configured department and mod groups.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-                    await sock.sendMessage(
-                        senderJid,
-                        { text: formatCseLeaderboard(botState.gameAccounts[senderJid]) },
-                        { quoted: m }
-                    );
-                    continue;
-                }
+                resourceSelectionState.set(senderJid, resources);
+                await sock.sendMessage(
+                    senderJid,
+                    { text: formatResourceMenu(resources) },
+                    { quoted: m }
+                );
+                continue;
+            }
 
-                if (chainedCommand === 'transfer') {
-                    if (!isGroupJid(senderJid) || (!isAllowedGroup && !isModGroup)) {
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: '🪙 CSE Coin transfers are available only in the configured department and mod groups.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-                    if (!senderUserJid) {
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: 'Could not identify your WhatsApp account.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
+            const imagePath = crReplies.images[chainedCommand];
 
-                    const transferMatch = text.match(/^\s*CR\s+transfer\s+(@\S+)\s+(\d+)\s*$/i);
-                    const mentionedJids = message.extendedTextMessage?.contextInfo?.mentionedJid || [];
-                    const recipientJid = transferMatch && mentionedJids.length === 1
-                        ? normalizeBlockedUserJid(mentionedJids[0])
-                        : undefined;
-                    const amount = transferMatch ? Number(transferMatch[2]) : 0;
-                    if (!recipientJid || !Number.isSafeInteger(amount) || amount <= 0) {
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: 'Usage: `CR transfer @mention <positive whole-number amount>`. Mention exactly one group member.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-
-                    try {
-                        const result = await transferGamePoints(
-                            senderJid,
-                            senderUserJid,
-                            recipientJid,
-                            m.pushName,
-                            amount
-                        );
-                        const response = result.transferred
-                            ? `💸 Transferred ${amount} 🪙 CSE Coins to the member you mentioned.\n👛 Your balance is now ${result.senderBalance} 🪙.`
-                            : result.reason === 'self'
-                                ? '🚫 You cannot transfer CSE Coins to yourself.'
-                                : result.reason === 'insufficient'
-                                    ? `🚫 You only have ${result.balance} 🪙 CSE Coins, so you cannot transfer ${amount}.`
-                                    : '🚫 That transfer would exceed the recipient wallet limit.';
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: response },
-                            { quoted: m }
-                        );
-                    } catch (error) {
-                        console.error('Could not transfer CSE game points:', error);
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: 'Could not save the transfer. No points were transferred; try again.' },
-                            { quoted: m }
-                        );
-                    }
-                    continue;
-                }
-
-                if (chainedCommand === 'quiz') {
-                    if (senderJid !== DISCUSSION_GROUP_JID && !isModGroup && !isBotAdmin) {
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: 'The quiz is available only in the Discussion group and configured mod groups.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-
-                    if (activeQuizRounds.has(senderJid)) {
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: 'A quiz is already in progress. Reply with 1, 2, or 3.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-
-                    if (!crReplies.quizQuestions.length) {
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: 'There are no valid quiz questions. Check bot-data.json.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-
-                    const previousQuestionHistory = botState.quizQuestionHistory;
-                    const question = selectNextQuizQuestion(crReplies.quizQuestions);
-                    try {
-                        await persistBotState();
-                    } catch (error) {
-                        botState.quizQuestionHistory = previousQuestionHistory;
-                        console.error('Could not save quiz question history:', error);
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: 'The quiz could not start. Please try again.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-
-                    const round = { question, answers: new Map() };
-                    activeQuizRounds.set(senderJid, round);
-                    resourceSelectionState.delete(senderJid);
-                    setTimeout(() => {
-                        finishQuizRound(sock, senderJid, round).catch(error => {
-                            console.error('Could not finish the quiz round:', error);
-                        });
-                    }, QUIZ_DURATION_MS);
-
-                    await sock.sendMessage(senderJid, { text: formatQuizQuestion(question) });
-                    continue;
-                }
-
-                if (chainedCommand === 'score') {
-                    const scores = botState.quizScores[senderJid] || {};
-                    const response = senderJid === DISCUSSION_GROUP_JID || isModGroup || isBotAdmin
-                        ? formatQuizScoreboard(scores)
-                        : 'Quiz scores are available only in the Discussion group and configured mod groups.';
-                    await sock.sendMessage(senderJid, { text: response }, { quoted: m });
-                    continue;
-                }
-
-                if (chainedCommand === 'rsrc') {
-                    const resources = crReplies.resources.filter(
-                        resource => isRecord(resource) &&
-                            typeof resource.subject === 'string' &&
-                            resource.subject.trim()
-                    );
-                    if (!resources.length) {
-                        await sock.sendMessage(
-                            senderJid,
-                            { text: 'No resources available right now.' },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-
-                    const requestedSubject = text.match(
-                        /^\s*CR\s+rsrc(?:\s+([\s\S]*?))?\s*$/i
-                    )?.[1]?.trim();
-                    if (requestedSubject) {
-                        const requestedResource = resources.find(
-                            resource => resource.subject.trim().toLowerCase() === requestedSubject.toLowerCase()
-                        );
-                        await sock.sendMessage(
-                            senderJid,
-                            {
-                                text: requestedResource
-                                    ? formatResourceReply(requestedResource)
-                                    : `I couldn't find "${requestedSubject}". Browse subjects with \`CR rsrc\`.`
-                            },
-                            { quoted: m }
-                        );
-                        continue;
-                    }
-
-                    resourceSelectionState.set(senderJid, resources);
-                    await sock.sendMessage(
-                        senderJid,
-                        { text: formatResourceMenu(resources) },
-                        { quoted: m }
-                    );
-                    continue;
-                }
-
-                const imagePath = crReplies.images[chainedCommand];
-
-                if (imagePath) {
-                    const reply = Object.hasOwn(crReplies.commands, chainedCommand)
-                        ? crReplies.commands[chainedCommand]
-                        : crReplies.default;
-                    try {
-                        const image = await readFile(new URL(imagePath, import.meta.url));
-                        await sock.sendMessage(
-                            senderJid,
-                            { image, ...(reply ? { caption: reply } : {}) },
-                            { quoted: m }
-                        );
-                    } catch (error) {
-                        console.error(`Could not send image for CR ${chainedCommand}:`, error);
-                        if (reply) {
-                            await sock.sendMessage(senderJid, { text: reply }, { quoted: m });
-                        }
-                    }
-                    continue;
-                }
-
+            if (imagePath) {
                 const reply = Object.hasOwn(crReplies.commands, chainedCommand)
                     ? crReplies.commands[chainedCommand]
                     : crReplies.default;
-
-                await sock.sendMessage(
-                    senderJid,
-                    { text: reply },
-                    { quoted: m }
-                );
+                try {
+                    const image = await readFile(new URL(imagePath, import.meta.url));
+                    await sock.sendMessage(
+                        senderJid,
+                        { image, ...(reply ? { caption: reply } : {}) },
+                        { quoted: m }
+                    );
+                } catch (error) {
+                    console.error(`Could not send image for CR ${chainedCommand}:`, error);
+                    if (reply) {
+                        await sock.sendMessage(senderJid, { text: reply }, { quoted: m });
+                    }
+                }
+                continue;
             }
+
+            const reply = Object.hasOwn(crReplies.commands, chainedCommand)
+                ? crReplies.commands[chainedCommand]
+                : crReplies.default;
+
+            await sock.sendMessage(
+                senderJid,
+                { text: reply },
+                { quoted: m }
+            );
         }
     });
 }
