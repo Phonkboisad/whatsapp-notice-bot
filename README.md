@@ -89,7 +89,24 @@ CR routine room next CX999 announce
 CR routine publish
 ```
 
-Use `CR routine` in any supported group to view tomorrow's routine. Room,
+For faster updates, use:
+
+```text
+CR room 1 CX401
+CR room 2-3 CX401
+CR cancel 1
+CR cancel 2-3
+```
+
+These commands never change the weekly routine permanently. Between 10:00 AM
+and 4:20 PM Asia/Dhaka they target today's routine; outside that window they
+target tomorrow's routine. The bot asks the configured CR and ACR in the mod
+group for approval. Either one can reply `y` to publish the short notice in
+the Notice group with all-member mentions, or `n` to discard it. Requests
+expire after 30 minutes.
+
+Use `CR routine` in any supported group to view the automatically selected
+routine. Room,
 class, and cancellation changes are stored as date-specific overrides, so the
 weekly routine remains reusable. Add `announce` to a change command to
 immediately publish that change to the Notice group with all-member mentions;
@@ -102,6 +119,9 @@ The date is optional because normal confirmation edits target tomorrow's
 routine. Provide `YYYY-MM-DD` only when editing another calendar day or
 correcting an already stored date-specific override. The weekly routine repeats
 on different dates, so the explicit date prevents changing the wrong day.
+
+`CR routine` shows today's routine until 4:00 PM, then tomorrow's routine.
+`CR routine all` shows the complete weekly routine.
 
 ## Commands
 

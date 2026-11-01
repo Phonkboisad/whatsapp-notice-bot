@@ -25,10 +25,13 @@ import {
     applyRoutineOverride,
     formatRoutine,
     formatRoutineReview,
+    formatWeeklyRoutine,
     getDhakaParts,
     getDateWeekday,
     findNextPeriod,
     getNextDateKey,
+    getRoutineDisplayDate,
+    getRoutineTargetDate,
     getRoutineForDate,
     makeMentionList,
     normalizeRoutineConfig,
@@ -64,13 +67,13 @@ const ROUTINE_POLL_INTERVAL_MS = 30_000;
 const RESERVED_CR_COMMANDS = new Set([
     'add', 'admin', 'block', 'ct', 'deadline', 'deadlines', 'dig', 'echo', 'game',
     'games', 'help', 'hunt', 'latest', 'leaderboard', 'menu', 'meme', 'mod', 'myid',
-    'quiz', 'remove', 'routine', 'rsrc', 'run', 'score', 'start', 'stop', 'transfer', 'unblock',
+    'cancel', 'quiz', 'remove', 'room', 'routine', 'rsrc', 'run', 'score', 'start', 'stop', 'transfer', 'unblock',
     'update', 'wallet'
 ]);
 const PUBLIC_BUILTIN_COMMANDS = [
     'help', 'menu', 'myid', 'rsrc', 'games', 'game', 'hunt', 'dig', 'wallet',
     'leaderboard', 'transfer', 'quiz', 'score', 'meme', 'ct', 'deadline',
-    'deadlines', 'latest', 'routine'
+    'deadlines', 'latest', 'routine', 'room', 'cancel'
 ];
 let repliesEnabled = true;
 let botDataUpdateQueue = Promise.resolve();
@@ -87,7 +90,8 @@ let botState = {
     latestNotices: [],
     routineOverrides: {},
     routineActions: {},
-    routineRoles: { cr: [], acr: [] }
+    routineRoles: { cr: [], acr: [] },
+    routinePendingChanges: []
 };
 const resourceSelectionState = new Map();
 const activeQuizRounds = new Map();
@@ -401,6 +405,17 @@ function isValidLatestNoticeItem(item) {
         Number.isFinite(item.timestamp) && item.timestamp > 0;
 }
 
+function isValidRoutinePendingChange(item) {
+    return isRecord(item) &&
+        typeof item.id === 'string' &&
+        typeof item.dateKey === 'string' &&
+        Array.isArray(item.periodIds) &&
+        item.periodIds.every(periodId => /^[1-7]$/.test(periodId)) &&
+        (item.action === 'room' || item.action === 'cancel') &&
+        typeof item.createdAt === 'number' &&
+        Number.isFinite(item.createdAt);
+}
+
 function runShellCommand(command) {
     return new Promise(resolve => {
         const child = spawn(command, {
@@ -551,7 +566,10 @@ function ensureBotStateLoaded() {
                     latestNotices,
                     routineOverrides: isRecord(data?.routineOverrides) ? data.routineOverrides : {},
                     routineActions: isRecord(data?.routineActions) ? data.routineActions : {},
-                    routineRoles
+                    routineRoles,
+                    routinePendingChanges: Array.isArray(data?.routinePendingChanges)
+                        ? data.routinePendingChanges.filter(isValidRoutinePendingChange)
+                        : []
                 };
             } catch (error) {
                 if (error.code !== 'ENOENT') {
@@ -568,7 +586,8 @@ function ensureBotStateLoaded() {
                     latestNotices: [],
                     routineOverrides: {},
                     routineActions: {},
-                    routineRoles: { cr: [], acr: [] }
+                    routineRoles: { cr: [], acr: [] },
+                    routinePendingChanges: []
                 };
             }
         })();
@@ -1029,6 +1048,64 @@ function formatRoutineChange(dateKey, change, entry) {
     ].join('\n');
 }
 
+const ROUTINE_PENDING_CHANGE_TIMEOUT_MS = 30 * 60 * 1000;
+
+function removeExpiredRoutineChanges() {
+    const cutoff = Date.now() - ROUTINE_PENDING_CHANGE_TIMEOUT_MS;
+    const active = botState.routinePendingChanges.filter(change => change.createdAt > cutoff);
+    const changed = active.length !== botState.routinePendingChanges.length;
+    botState.routinePendingChanges = active;
+    return changed;
+}
+
+function createRoutineChange(dateKey, periodIds, action, value, requesterJid) {
+    removeExpiredRoutineChanges();
+    const change = {
+        id: randomUUID(),
+        dateKey,
+        periodIds,
+        action,
+        ...(value ? { value } : {}),
+        requesterJid,
+        createdAt: Date.now()
+    };
+    botState.routinePendingChanges.push(change);
+    return change;
+}
+
+function getLatestRoutineChange() {
+    removeExpiredRoutineChanges();
+    return botState.routinePendingChanges.at(-1);
+}
+
+async function publishApprovedRoutineChange(sock, change, routineConfig) {
+    const override = change.action === 'room'
+        ? { room: change.value }
+        : { cancelled: true };
+    for (const periodId of change.periodIds) {
+        applyRoutineOverride(botState.routineOverrides, change.dateKey, periodId, override);
+    }
+
+    const entries = getRoutineForDate(routineConfig, change.dateKey, botState.routineOverrides);
+    const changedEntries = entries.filter(entry => change.periodIds.includes(entry.id));
+    const periodLabel = change.periodIds.length === 1
+        ? `period ${change.periodIds[0]}`
+        : `periods ${change.periodIds.join('-')}`;
+    const summary = change.action === 'room'
+        ? `📍 Room changed to *${change.value}* for ${periodLabel}.`
+        : `❌ ${periodLabel} cancelled.`;
+    const text = `${formatRoutineChange(change.dateKey, summary, changedEntries[0])}\nPeriods affected: ${change.periodIds.join(', ')}`;
+    const participants = await getGroupParticipantJids(sock, NOTICE_GROUP_JID);
+    await sock.sendMessage(NOTICE_GROUP_JID, {
+        text,
+        mentions: makeMentionList(participants)
+    });
+    botState.routinePendingChanges = botState.routinePendingChanges.filter(item => item.id !== change.id);
+    await persistBotState();
+    await recordLatestNotice(text);
+    return text;
+}
+
 async function runRoutineScheduler(sock) {
     const now = getDhakaParts();
     const dateKey = getNextDateKey();
@@ -1088,7 +1165,8 @@ function formatCrHelp({ commands, images }, showModManual) {
             '• `CR menu` (academic info, bus schedules, resources, and games)',
             '• `CR latest` (view the last 5 official notices)',
             '• `CR ct` or `CR deadline` (live countdown to upcoming exams/deadlines)',
-            '• `CR routine` (view tomorrow’s class routine)',
+            '• `CR routine` (view today’s routine before 4:00 PM, otherwise tomorrow)',
+            '• `CR routine all` (view the full weekly routine)',
             '• `CR myid` (show your WhatsApp JID)',
             textCommands,
             '',
@@ -1119,7 +1197,8 @@ function formatCrHelp({ commands, images }, showModManual) {
         '• `CR menu` (academic info, bus schedules, resources, and games)',
         '• `CR latest` (view the last 5 official notices)',
         '• `CR ct` or `CR deadline` (view live countdowns)',
-        '• `CR routine` (view tomorrow’s class routine)',
+        '• `CR routine` (view today’s routine before 4:00 PM, otherwise tomorrow)',
+        '• `CR routine all` (view the full weekly routine)',
         '• `CR myid` (show your WhatsApp JID)',
         textCommands,
         '',
@@ -1130,6 +1209,9 @@ function formatCrHelp({ commands, images }, showModManual) {
         '',
         '📚 *Class routine automation*',
         '• `CR routine` or `CR routine review [YYYY-MM-DD]`',
+        '• `CR routine all` (view the full weekly routine)',
+        '• `CR cancel <period or range>` (today or tomorrow automatically)',
+        '• `CR room <period or range> <room>` (today or tomorrow automatically)',
         '• CR/ACR: `CR routine confirm [YYYY-MM-DD]`',
         '• CR/ACR: `CR routine room <period|range|next> <room> [YYYY-MM-DD] [announce]`',
         '• CR/ACR: `CR routine class <period|range|next> <class> [YYYY-MM-DD] [announce]`',
@@ -1337,6 +1419,39 @@ async function startBot() {
             const canManageRoutine = isRoutineManager(senderUserJid, isBotAdmin, isModGroup);
             const isBlockedFromCr = !isBotAdmin && senderUserJid && botState.blockedCrUserJids.includes(senderUserJid);
 
+            const expiredRoutineChanges = removeExpiredRoutineChanges();
+            if (expiredRoutineChanges) {
+                try {
+                    await persistBotState();
+                } catch (error) {
+                    console.error('Could not clean expired routine changes:', error);
+                }
+            }
+
+            if (isModGroup && getRoutineRole(senderUserJid) && /^\s*[yn]\s*$/i.test(text)) {
+                const pendingChange = getLatestRoutineChange();
+                if (!pendingChange) {
+                    await sock.sendMessage(senderJid, { text: 'There is no pending routine change awaiting approval.' }, { quoted: m });
+                    continue;
+                }
+                if (/^\s*n\s*$/i.test(text)) {
+                    botState.routinePendingChanges = botState.routinePendingChanges
+                        .filter(change => change.id !== pendingChange.id);
+                    await persistBotState();
+                    await sock.sendMessage(senderJid, { text: '❌ Routine change rejected and discarded.' }, { quoted: m });
+                    continue;
+                }
+                try {
+                    const replies = await loadCrReplies();
+                    await publishApprovedRoutineChange(sock, pendingChange, replies.routine);
+                    await sock.sendMessage(senderJid, { text: '✅ Approved and announced in the Notice group.' }, { quoted: m });
+                } catch (error) {
+                    console.error('Could not publish approved routine change:', error);
+                    await sock.sendMessage(senderJid, { text: 'Could not publish the approved routine change. It remains pending.' }, { quoted: m });
+                }
+                continue;
+            }
+
             if (/^\s*CR\s+myid\s*$/i.test(text)) {
                 await sock.sendMessage(
                     senderJid,
@@ -1387,6 +1502,65 @@ async function startBot() {
             }
 
             if (canManageBot) {
+                const shortRoutineChange = text.match(
+                    /^\s*CR\s+(?:routine\s+)?(room|cancel)\s+([1-7](?:-[1-7])?)(?:\s+(.+?))?\s*$/i
+                );
+                if (shortRoutineChange) {
+                    const action = shortRoutineChange[1].toLowerCase();
+                    const periodIds = parsePeriodSelection(shortRoutineChange[2]);
+                    const value = shortRoutineChange[3]?.trim();
+                    if (!periodIds || (action === 'room' && !value)) {
+                        await sock.sendMessage(senderJid, {
+                            text: action === 'room'
+                                ? 'Usage: `CR room <period or range> <room>`'
+                                : 'Usage: `CR cancel <period or range>`'
+                        }, { quoted: m });
+                        continue;
+                    }
+
+                    const replies = await loadCrReplies();
+                    const dateKey = getRoutineTargetDate();
+                    const entries = getRoutineForDate(replies.routine, dateKey, botState.routineOverrides);
+                    const selectedEntries = periodIds.map(periodId => entries.find(entry => entry.id === periodId));
+                    if (selectedEntries.some(entry => !entry || entry.break)) {
+                        await sock.sendMessage(senderJid, {
+                            text: 'That period selection includes a break or an unavailable period.'
+                        }, { quoted: m });
+                        continue;
+                    }
+
+                    const pendingChange = createRoutineChange(dateKey, periodIds, action, value, senderUserJid);
+                    const roleMentions = makeMentionList([
+                        ...botState.routineRoles.cr,
+                        ...botState.routineRoles.acr
+                    ]);
+                    const approvalText = [
+                        '🔔 *Routine change approval needed*',
+                        `📅 Date: *${dateKey}*`,
+                        `🔧 ${action === 'room' ? `Change ${periodIds.join('-')} to room *${value}*` : `Cancel period${periodIds.length > 1 ? 's' : ''} *${periodIds.join(', ')}*`}`,
+                        '',
+                        'Reply with *y* to announce in Notice or *n* to discard.',
+                        '⏳ This request expires in 30 minutes.'
+                    ].join('\n');
+                    try {
+                        await persistBotState();
+                        await sock.sendMessage(MOD_GROUP_JID, {
+                            text: approvalText,
+                            mentions: roleMentions
+                        });
+                        await sock.sendMessage(senderJid, {
+                            text: `📝 Change queued for ${dateKey}. CR/ACR approval is required in the mod group.`
+                        }, { quoted: m });
+                    } catch (error) {
+                        botState.routinePendingChanges = botState.routinePendingChanges
+                            .filter(change => change.id !== pendingChange.id);
+                        await persistBotState().catch(() => {});
+                        console.error('Could not queue routine change:', error);
+                        await sock.sendMessage(senderJid, { text: 'Could not queue the routine change.' }, { quoted: m });
+                    }
+                    continue;
+                }
+
                 const routineMatch = text.match(/^\s*CR\s+routine(?:\s+([\s\S]*?))?\s*$/i);
                 if (routineMatch) {
                     const routineArgs = routineMatch[1]?.trim() || '';
@@ -1427,8 +1601,18 @@ async function startBot() {
                         continue;
                     }
 
+                    if (action === 'all') {
+                        await sock.sendMessage(senderJid, {
+                            text: formatWeeklyRoutine(replies.routine, botState.routineOverrides)
+                        }, { quoted: m });
+                        continue;
+                    }
+
                     if (action === 'list' || action === 'tomorrow' || action === 'review') {
-                        const dateKey = getRoutineDateArgument(routineTokens[0], action === 'tomorrow' ? getNextDateKey() : getNextDateKey());
+                        const dateKey = getRoutineDateArgument(
+                            routineTokens[0],
+                            action === 'tomorrow' ? getRoutineDisplayDate() : getNextDateKey()
+                        );
                         const entries = getRoutineForDate(replies.routine, dateKey, botState.routineOverrides);
                         await sock.sendMessage(senderJid, {
                             text: action === 'list' || action === 'tomorrow'
@@ -2392,8 +2576,19 @@ async function startBot() {
             }
 
             if (chainedCommand === 'routine') {
-                const routineArgs = text.match(/^\s*CR\s+routine(?:\s+(?:tomorrow|review)?\s*(\d{4}-\d{2}-\d{2})?)?\s*$/i);
-                const dateKey = getRoutineDateArgument(routineArgs?.[1]);
+                const routineArgs = text.match(/^\s*CR\s+routine(?:\s+(all|tomorrow|review)?\s*(\d{4}-\d{2}-\d{2})?)?\s*$/i);
+                if (routineArgs?.[1]?.toLowerCase() === 'all') {
+                    await sock.sendMessage(
+                        senderJid,
+                        { text: formatWeeklyRoutine(crReplies.routine, botState.routineOverrides) },
+                        { quoted: m }
+                    );
+                    continue;
+                }
+                const dateKey = getRoutineDateArgument(
+                    routineArgs?.[2],
+                    getRoutineDisplayDate()
+                );
                 const entries = getRoutineForDate(crReplies.routine, dateKey, botState.routineOverrides);
                 await sock.sendMessage(
                     senderJid,

@@ -3,8 +3,11 @@ import test from 'node:test';
 import {
     applyRoutineOverride,
     formatRoutine,
+    formatWeeklyRoutine,
     groupRoutineEntries,
     getDateWeekday,
+    getRoutineDisplayDate,
+    getRoutineTargetDate,
     getRoutineForDate,
     makeMentionList,
     normalizeRoutineConfig,
@@ -72,4 +75,22 @@ test('parses only ascending single periods or consecutive ranges', () => {
     assert.deepEqual(parsePeriodSelection('5-7'), ['5', '6', '7']);
     assert.equal(parsePeriodSelection('7-5'), undefined);
     assert.equal(parsePeriodSelection('2-8'), undefined);
+});
+
+test('targets today only during the inclusive daytime command window', () => {
+    const atTen = Date.parse('2026-11-02T10:00:00+06:00');
+    const atEnd = Date.parse('2026-11-02T16:20:00+06:00');
+    const afterEnd = Date.parse('2026-11-02T16:21:00+06:00');
+    assert.equal(getRoutineTargetDate(atTen), '2026-11-02');
+    assert.equal(getRoutineTargetDate(atEnd), '2026-11-02');
+    assert.equal(getRoutineTargetDate(afterEnd), '2026-11-03');
+    assert.equal(getRoutineDisplayDate(Date.parse('2026-11-02T15:59:00+06:00')), '2026-11-02');
+    assert.equal(getRoutineDisplayDate(Date.parse('2026-11-02T16:00:00+06:00')), '2026-11-03');
+});
+
+test('formats a complete weekly routine', () => {
+    const weekly = formatWeeklyRoutine(config);
+    assert.match(weekly, /CLASS ROUTINE/);
+    assert.match(weekly, /Monday/);
+    assert.doesNotMatch(weekly, /Thursday/);
 });

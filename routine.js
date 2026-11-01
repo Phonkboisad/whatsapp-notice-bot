@@ -2,6 +2,8 @@ const DHAKA_OFFSET_MS = 6 * 60 * 60 * 1000;
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export const ROUTINE_TIMEZONE = 'Asia/Dhaka';
+export const ROUTINE_DAY_START_MINUTES = 10 * 60;
+export const ROUTINE_DAY_END_MINUTES = 16 * 60 + 20;
 export const ROUTINE_PERIODS = [
     { id: '1', label: 'Male 1st', start: '10:50', end: '11:30' },
     { id: '2', label: 'Male 2nd', start: '11:30', end: '12:20' },
@@ -42,7 +44,23 @@ export function getNextDateKey(timestamp = Date.now()) {
     return dhakaDate.toISOString().slice(0, 10);
 }
 
+export function getRoutineTargetDate(timestamp = Date.now()) {
+    const current = getDhakaParts(timestamp);
+    const minutes = current.hour * 60 + current.minute;
+    return minutes >= ROUTINE_DAY_START_MINUTES && minutes <= ROUTINE_DAY_END_MINUTES
+        ? current.dateKey
+        : getNextDateKey(timestamp);
+}
+
+export function getRoutineDisplayDate(timestamp = Date.now()) {
+    const current = getDhakaParts(timestamp);
+    return current.hour * 60 + current.minute >= 16 * 60
+        ? getNextDateKey(timestamp)
+        : current.dateKey;
+}
+
 export function getDateWeekday(dateKey) {
+    if (DAY_NAMES.includes(dateKey)) return dateKey;
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
     if (!match) return undefined;
     const weekday = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))).getUTCDay();
@@ -162,7 +180,7 @@ export function formatRoutine(dateKey, entries, unconfirmed = false) {
     const day = getDateWeekday(dateKey);
     const lines = [
         '╭━━ 📚 *CLASS ROUTINE* ━━╮',
-        `┃ 📅 *${day}, ${dateKey}*`,
+        `┃ 📅 *${day}${DAY_NAMES.includes(dateKey) ? '' : `, ${dateKey}`}*`,
         '╰━━━━━━━━━━━━━━━━━━━━╯'
     ];
     if (unconfirmed) lines.push('\n⚠️ _Published without CR/ACR confirmation._');
@@ -196,4 +214,22 @@ export function formatRoutineReview(dateKey, entries) {
             `• *${group.periodStart === group.periodEnd ? `P${group.periodStart}` : `P${group.periodStart}-${group.periodEnd}`}* ${group.start}-${group.end} — ${group.cancelled ? '❌ Cancelled' : group.class}${group.room ? ` · ${group.room}` : ''}`
         )
     ].join('\n');
+}
+
+export function formatWeeklyRoutine(config, overrides = {}) {
+    return DAY_NAMES
+        .filter(day => !config.noClassDays.includes(day))
+        .map(day => {
+            const entries = config.days[day]
+                ? ROUTINE_PERIODS.map(period => ({
+                    ...period,
+                    ...(config.days[day][period.id] || (period.break ? { class: 'Break', room: '' } : {})),
+                    id: period.id
+                }))
+                : [];
+            return entries.length
+                ? formatRoutine(day, entries, false)
+                : `📚 *${day}*\n📭 _No scheduled classes._`;
+        })
+        .join('\n\n');
 }
