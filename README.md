@@ -75,20 +75,6 @@ CR routine cr remove @mention
 CR routine acr list
 ```
 
-CR and ACR members can review and update the next routine. Add a date at the
-end to edit a different day:
-
-```text
-CR routine review
-CR routine confirm
-CR routine room 5 CX999
-CR routine room 5-7 CX999
-CR routine class 2 Operating Systems
-CR routine cancel 6
-CR routine room next CX999 announce
-CR routine publish
-```
-
 For faster updates, use:
 
 ```text
@@ -106,19 +92,10 @@ the Notice group with all-member mentions, or `n` to discard it. Requests
 expire after 30 minutes.
 
 Use `CR routine` in any supported group to view the automatically selected
-routine. Room,
-class, and cancellation changes are stored as date-specific overrides, so the
-weekly routine remains reusable. Add `announce` to a change command to
-immediately publish that change to the Notice group with all-member mentions;
-use `next` to target the next upcoming class today. A period range such as
-`5-7` applies only when all selected periods are consecutive and currently
-have the same class, teacher, and room. Breaks and mismatched periods are
-rejected.
-
-The date is optional because normal confirmation edits target tomorrow's
-routine. Provide `YYYY-MM-DD` only when editing another calendar day or
-correcting an already stored date-specific override. The weekly routine repeats
-on different dates, so the explicit date prevents changing the wrong day.
+routine. Room and cancellation changes are stored as date-specific overrides,
+so the weekly routine remains reusable. A period range such as `5-7` applies
+only when all selected periods are consecutive and currently have the same
+class, teacher, and room. Breaks and mismatched periods are rejected.
 
 `CR routine` shows today's routine until 4:00 PM, then tomorrow's routine.
 `CR routine all` shows the complete weekly routine.
