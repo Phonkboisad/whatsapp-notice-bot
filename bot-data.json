@@ -2066,7 +2066,7 @@
         "7": {"class": "Mathematics III (MATH-2307)", "teacher": "Prof. Dr. A. N. M. Rezaul Karim", "room": "CX102"}
       },
       "Monday": {
-        "1": {"class": "Chemistry (CHEM-2301)", "room": "CXB101"},
+        "1": {"class": "Chemistry (CHEM-2301)", "room": "CX402"},
         "2": {"class": "Software Development I (CSE-2340)", "teacher": "Mr. Mahir Shadid", "room": "SD_LAB_CX402"},
         "3": {"class": "Software Development I (CSE-2340)", "teacher": "Mr. Mahir Shadid", "room": "SD_LAB_CX402"},
         "4": {"class": "Break", "room": ""},
