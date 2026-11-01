@@ -2043,5 +2043,55 @@
       "answer": 3,
       "explanation": "Observer defines a one-to-many dependency where state changes trigger automatic updates on observers."
     }
-  ]
+  ],
+  "routine": {
+    "noClassDays": ["Thursday", "Friday"],
+    "days": {
+      "Saturday": {
+        "1": {"class": "Software Development I (CSE-2340)", "teacher": "Mr. Mahir Shadid", "room": "SD_LAB_CX402"},
+        "2": {"class": "Software Development I (CSE-2340)", "teacher": "Mr. Mahir Shadid", "room": "SD_LAB_CX402"},
+        "3": {"class": "Break", "room": ""},
+        "4": {"class": "Break", "room": ""},
+        "5": {"class": "Morality Development Program II (MDP-2303)", "teacher": "Ariful Islam", "room": "CX501"},
+        "6": {"class": "Digital Logic Design (CSE-2323)", "room": "CX501"},
+        "7": {"class": "Digital Logic Design (CSE-2323)", "room": "CX501"}
+      },
+      "Sunday": {
+        "1": {"class": "Sciences of Quran and Hadith (URED-2302)", "room": "CX102"},
+        "2": {"class": "Probability and Statistics (STAT-2311)", "teacher": "Dr. Mohammad Manjur Alam", "room": "CX102"},
+        "3": {"class": "Probability and Statistics (STAT-2311)", "teacher": "Dr. Mohammad Manjur Alam", "room": "CX102"},
+        "4": {"class": "Break", "room": ""},
+        "5": {"class": "Data Structures Lab (CSE-2322)", "room": "DB_LAB_CX201"},
+        "6": {"class": "Data Structures Lab (CSE-2322)", "room": "DB_LAB_CX201"},
+        "7": {"class": "Mathematics III (MATH-2307)", "teacher": "Prof. Dr. A. N. M. Rezaul Karim", "room": "CX102"}
+      },
+      "Monday": {
+        "1": {"class": "Chemistry (CHEM-2301)", "room": "CXB101"},
+        "2": {"class": "Software Development I (CSE-2340)", "teacher": "Mr. Mahir Shadid", "room": "SD_LAB_CX402"},
+        "3": {"class": "Software Development I (CSE-2340)", "teacher": "Mr. Mahir Shadid", "room": "SD_LAB_CX402"},
+        "4": {"class": "Break", "room": ""},
+        "5": {"class": "Data Structures (CSE-2321)", "room": "CX404"},
+        "6": {"class": "Data Structures (CSE-2321)", "room": "CX404"},
+        "7": {"class": "Data Structures (CSE-2321)", "room": "CX404"}
+      },
+      "Tuesday": {
+        "1": {"class": "Break", "room": ""},
+        "2": {"class": "Mathematics III (MATH-2307)", "teacher": "Prof. Dr. A. N. M. Rezaul Karim", "room": "CX503"},
+        "3": {"class": "Mathematics III (MATH-2307)", "teacher": "Prof. Dr. A. N. M. Rezaul Karim", "room": "CX503"},
+        "4": {"class": "Break", "room": ""},
+        "5": {"class": "Digital Logic Design (CSE-2323)", "room": "CX104"},
+        "6": {"class": "Sciences of Quran and Hadith (URED-2302)", "teacher": "Md. Jaweed Iqbal", "room": "CX104"},
+        "7": {"class": "Break", "room": ""}
+      },
+      "Wednesday": {
+        "1": {"class": "Chemistry (CHEM-2301)", "room": "CX502"},
+        "2": {"class": "Chemistry (CHEM-2301)", "room": "CX502"},
+        "3": {"class": "Break", "room": ""},
+        "4": {"class": "Break", "room": ""},
+        "5": {"class": "Digital Logic Design Lab (CSE-2324)", "room": "Electro_LAB_CX301"},
+        "6": {"class": "Digital Logic Design Lab (CSE-2324)", "room": "Electro_LAB_CX301"},
+        "7": {"class": "Digital Logic Design Lab (CSE-2324)", "room": "Electro_LAB_CX301"}
+      }
+    }
+  }
 }

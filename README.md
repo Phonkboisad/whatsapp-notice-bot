@@ -57,6 +57,43 @@ The bot must be a member of each group where it should answer. Changes to
 - The bot stores its runtime state in `bot-state.json` and persists changes as it
   handles commands.
 
+### Class routine automation
+
+The weekly class routine is stored as structured data in `bot-data.json`. The
+bot uses Asia/Dhaka time to ask the configured CR and ACR for confirmation in
+the mod group at 8:00 PM, then publishes the next day's routine in the Notice
+group at 9:00 PM. It mentions the current Notice-group participants and skips
+configured no-class days. Scheduler actions are persisted so reconnects do not
+repeat the same request or announcement.
+
+Bot admins or mod-group members can manage the CR/ACR list:
+
+```text
+CR routine cr add @mention
+CR routine acr add @mention
+CR routine cr remove @mention
+CR routine acr list
+```
+
+CR and ACR members can review and update the next routine. Add a date at the
+end to edit a different day:
+
+```text
+CR routine review
+CR routine confirm
+CR routine room 5 CX999
+CR routine class 2 Operating Systems
+CR routine cancel 6
+CR routine room next CX999 announce
+CR routine publish
+```
+
+Use `CR routine` in any supported group to view tomorrow's routine. Room,
+class, and cancellation changes are stored as date-specific overrides, so the
+weekly routine remains reusable. Add `announce` to a change command to
+immediately publish that change to the Notice group with all-member mentions;
+use `next` to target the next upcoming class today.
+
 ## Commands
 
 | Command | Access | Purpose |
