@@ -31,7 +31,8 @@ import {
     getNextDateKey,
     getRoutineForDate,
     makeMentionList,
-    normalizeRoutineConfig
+    normalizeRoutineConfig,
+    parsePeriodSelection
 } from './routine.js';
 
 const NOTICE_GROUP_JID = '120363400837000305@g.us';
@@ -1011,9 +1012,9 @@ function formatRoutineConfirmationRequest(dateKey, entries) {
         formatRoutineReview(dateKey, entries),
         '',
         'Confirm: `CR routine confirm`',
-        'Room change: `CR routine room <period> <room>`',
-        'Class change: `CR routine class <period> <class name>`',
-        'Cancel: `CR routine cancel <period>`',
+        'Room change: `CR routine room <period or range> <room>`',
+        'Class change: `CR routine class <period or range> <class name>`',
+        'Cancel: `CR routine cancel <period or range>`',
         'Use `CR routine review` to view the current version.'
     ].join('\n');
 }
@@ -1130,9 +1131,10 @@ function formatCrHelp({ commands, images }, showModManual) {
         '📚 *Class routine automation*',
         '• `CR routine` or `CR routine review [YYYY-MM-DD]`',
         '• CR/ACR: `CR routine confirm [YYYY-MM-DD]`',
-        '• CR/ACR: `CR routine room <period|next> <room> [YYYY-MM-DD] [announce]`',
-        '• CR/ACR: `CR routine class <period|next> <class> [YYYY-MM-DD] [announce]`',
-        '• CR/ACR: `CR routine cancel <period|next> [YYYY-MM-DD] [announce]`',
+        '• CR/ACR: `CR routine room <period|range|next> <room> [YYYY-MM-DD] [announce]`',
+        '• CR/ACR: `CR routine class <period|range|next> <class> [YYYY-MM-DD] [announce]`',
+        '• CR/ACR: `CR routine cancel <period|range|next> [YYYY-MM-DD] [announce]`',
+        '  No date means tomorrow; use a date only for another day.',
         '• `CR routine cr|acr add/remove @mention`',
         '• `CR routine publish [YYYY-MM-DD]`',
         '',
@@ -1479,8 +1481,9 @@ async function startBot() {
                         );
                         periodId = nextPeriod?.id;
                     }
-                    if (!/^[1-7]$/.test(periodId || '')) {
-                        await sock.sendMessage(senderJid, { text: 'Usage: CR routine room|class|cancel <period 1-7|next> [value] [YYYY-MM-DD] [announce]' }, { quoted: m });
+                    const selectedPeriodIds = parsePeriodSelection(periodId);
+                    if (!selectedPeriodIds) {
+                        await sock.sendMessage(senderJid, { text: 'Usage: CR routine room|class|cancel <period 1-7 or 2-3|next> [value] [YYYY-MM-DD] [announce]' }, { quoted: m });
                         continue;
                     }
                     const changeValue = tokensWithoutDate.slice(1).join(' ').trim();
@@ -1499,17 +1502,39 @@ async function startBot() {
                         await sock.sendMessage(senderJid, { text: 'Routine action must be confirm, review, room, class, cancel, or publish.' }, { quoted: m });
                         continue;
                     }
-                    applyRoutineOverride(botState.routineOverrides, effectiveDateKey, periodId, change);
+                    const routineEntries = getRoutineForDate(replies.routine, effectiveDateKey, botState.routineOverrides);
+                    const selectedEntries = selectedPeriodIds.map(id =>
+                        routineEntries.find(entry => entry.id === id)
+                    );
+                    if (
+                        selectedEntries.some(entry => !entry || entry.break) ||
+                        (selectedPeriodIds.length > 1 && selectedEntries.some((entry, index) =>
+                            index > 0 && !(
+                                entry.class === selectedEntries[index - 1].class &&
+                                (entry.teacher || '') === (selectedEntries[index - 1].teacher || '') &&
+                                (entry.room || '') === (selectedEntries[index - 1].room || '')
+                            )
+                        ))
+                    ) {
+                        await sock.sendMessage(senderJid, {
+                            text: 'That range includes a break or periods with different classes/rooms. Change each period separately or use one matching consecutive class range.'
+                        }, { quoted: m });
+                        continue;
+                    }
+                    for (const selectedPeriodId of selectedPeriodIds) {
+                        applyRoutineOverride(botState.routineOverrides, effectiveDateKey, selectedPeriodId, change);
+                    }
                     botState.routineActions[`confirm:${effectiveDateKey}`] = 'changed';
                     await persistBotState();
-                    const updatedEntry = getRoutineForDate(replies.routine, effectiveDateKey, botState.routineOverrides)
-                        .find(entry => entry.id === periodId);
+                    const updatedEntries = getRoutineForDate(replies.routine, effectiveDateKey, botState.routineOverrides)
+                        .filter(entry => selectedPeriodIds.includes(entry.id));
+                    const updatedEntry = updatedEntries[0];
                     const changeText = action === 'room' ? `Room changed to ${changeValue}.`
                         : action === 'class' ? `Class changed to ${changeValue}.`
                             : 'Period cancelled.';
                     if (shouldAnnounce) {
                         const participants = await getGroupParticipantJids(sock, NOTICE_GROUP_JID);
-                        const announcement = formatRoutineChange(effectiveDateKey, changeText, updatedEntry);
+                        const announcement = `${formatRoutineChange(effectiveDateKey, changeText, updatedEntry)}\nPeriods affected: ${selectedPeriodIds.join(', ')}`;
                         await sock.sendMessage(NOTICE_GROUP_JID, {
                             text: announcement,
                             mentions: makeMentionList(participants)
@@ -1517,7 +1542,7 @@ async function startBot() {
                         await recordLatestNotice(announcement);
                     }
                     await sock.sendMessage(senderJid, {
-                        text: `${formatRoutineChange(effectiveDateKey, changeText, updatedEntry)}\n\n${shouldAnnounce ? '✅ Announced in the Notice group.' : `Use \`CR routine publish ${effectiveDateKey}\` when ready.`}`
+                        text: `${formatRoutineChange(effectiveDateKey, changeText, updatedEntry)}\nPeriods affected: ${selectedPeriodIds.join(', ')}\n\n${shouldAnnounce ? '✅ Announced in the Notice group.' : `Use \`CR routine publish ${effectiveDateKey}\` when ready.`}`
                     }, { quoted: m });
                     continue;
                 }

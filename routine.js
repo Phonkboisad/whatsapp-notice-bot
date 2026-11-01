@@ -3,9 +3,9 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 
 export const ROUTINE_TIMEZONE = 'Asia/Dhaka';
 export const ROUTINE_PERIODS = [
-    { id: '1', label: 'Male 1st', start: '10:30', end: '11:20' },
-    { id: '2', label: 'Male 2nd', start: '11:20', end: '12:10' },
-    { id: '3', label: 'Male 3rd', start: '12:10', end: '13:00' },
+    { id: '1', label: 'Male 1st', start: '10:50', end: '11:30' },
+    { id: '2', label: 'Male 2nd', start: '11:30', end: '12:20' },
+    { id: '3', label: 'Male 3rd', start: '12:20', end: '13:10' },
     { id: '4', label: 'Male Break', start: '13:00', end: '13:50', break: true },
     { id: '5', label: 'Male 4th', start: '13:50', end: '14:40' },
     { id: '6', label: 'Male 5th', start: '14:40', end: '15:30' },
@@ -110,15 +110,75 @@ export function findNextPeriod(config, dateKey, now = Date.now(), overrides = {}
     });
 }
 
+function canMergeRoutineEntries(previous, current) {
+    return !previous.break &&
+        !current.break &&
+        !previous.cancelled &&
+        !current.cancelled &&
+        previous.class &&
+        current.class &&
+        previous.class === current.class &&
+        (previous.teacher || '') === (current.teacher || '') &&
+        (previous.room || '') === (current.room || '') &&
+        Number(current.id) === Number(previous.id) + 1;
+}
+
+export function groupRoutineEntries(entries) {
+    const groups = [];
+    for (const entry of entries) {
+        const previous = groups.at(-1);
+        if (previous && canMergeRoutineEntries(previous.entries.at(-1), entry)) {
+            previous.entries.push(entry);
+            previous.end = entry.end;
+            previous.periodEnd = entry.id;
+        } else if (!entry.break && entry.class) {
+            groups.push({
+                entries: [entry],
+                periodStart: entry.id,
+                periodEnd: entry.id,
+                start: entry.start,
+                end: entry.end,
+                class: entry.class,
+                teacher: entry.teacher || '',
+                room: entry.room || '',
+                cancelled: Boolean(entry.cancelled)
+            });
+        }
+    }
+    return groups;
+}
+
+export function parsePeriodSelection(value) {
+    if (typeof value !== 'string') return undefined;
+    const match = /^(?:([1-7])|([1-7])-([1-7]))$/.exec(value.trim());
+    if (!match) return undefined;
+    const start = Number(match[1] || match[2]);
+    const end = Number(match[1] || match[3]);
+    if (end < start) return undefined;
+    return Array.from({ length: end - start + 1 }, (_, index) => String(start + index));
+}
+
 export function formatRoutine(dateKey, entries, unconfirmed = false) {
     const day = getDateWeekday(dateKey);
-    const lines = [`📚 *Class Routine — ${day}, ${dateKey}*`];
-    if (unconfirmed) lines.push('⚠️ Published without CR/ACR confirmation.');
-    const classes = entries.filter(entry => !entry.break && entry.class);
-    if (!classes.length) return `${lines.join('\n')}\n\nNo scheduled classes.`;
-    for (const entry of classes) {
-        const details = [entry.class, entry.teacher, entry.room && `Room: ${entry.room}`].filter(Boolean).join(' — ');
-        lines.push(`\n*${entry.id}. ${entry.start}-${entry.end}*\n${entry.cancelled ? '❌ ' : ''}${details}`);
+    const lines = [
+        '╭━━ 📚 *CLASS ROUTINE* ━━╮',
+        `┃ 📅 *${day}, ${dateKey}*`,
+        '╰━━━━━━━━━━━━━━━━━━━━╯'
+    ];
+    if (unconfirmed) lines.push('\n⚠️ _Published without CR/ACR confirmation._');
+    const groups = groupRoutineEntries(entries);
+    if (!groups.length) return `${lines.join('\n')}\n\n📭 _No scheduled classes._`;
+    for (const group of groups) {
+        const periodLabel = group.periodStart === group.periodEnd
+            ? `Period ${group.periodStart}`
+            : `Periods ${group.periodStart}-${group.periodEnd}`;
+        const details = [
+            `⏰ *${group.start}–${group.end}* · _${periodLabel}_`,
+            `${group.cancelled ? '❌' : '📘'} *${group.class}*`,
+            group.teacher && `👨‍🏫 ${group.teacher}`,
+            group.room && `📍 Room: *${group.room}*`
+        ].filter(Boolean);
+        lines.push(`\n${details.join('\n')}`);
     }
     return lines.join('\n');
 }
@@ -131,7 +191,9 @@ export function makeMentionList(participants) {
 
 export function formatRoutineReview(dateKey, entries) {
     return [
-        `Review for ${dateKey}:`,
-        ...entries.map(entry => `${entry.id}. ${entry.start}-${entry.end}: ${entry.class || 'Free'}${entry.room ? ` (${entry.room})` : ''}`)
+        `📝 *Routine review — ${dateKey}*`,
+        ...groupRoutineEntries(entries).map(group =>
+            `• *${group.periodStart === group.periodEnd ? `P${group.periodStart}` : `P${group.periodStart}-${group.periodEnd}`}* ${group.start}-${group.end} — ${group.cancelled ? '❌ Cancelled' : group.class}${group.room ? ` · ${group.room}` : ''}`
+        )
     ].join('\n');
 }

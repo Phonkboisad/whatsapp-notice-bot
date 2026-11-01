@@ -3,10 +3,12 @@ import test from 'node:test';
 import {
     applyRoutineOverride,
     formatRoutine,
+    groupRoutineEntries,
     getDateWeekday,
     getRoutineForDate,
     makeMentionList,
     normalizeRoutineConfig,
+    parsePeriodSelection,
     ROUTINE_PERIODS
 } from '../routine.js';
 
@@ -25,7 +27,7 @@ test('selects a weekday routine and preserves period times', () => {
     const entries = getRoutineForDate(config, '2026-11-02');
     assert.equal(entries.length, ROUTINE_PERIODS.length);
     assert.equal(entries[0].class, 'Data Structures');
-    assert.equal(entries[0].start, '10:30');
+    assert.equal(entries[0].start, '10:50');
 });
 
 test('applies room and cancellation overrides without mutating the base routine', () => {
@@ -50,4 +52,24 @@ test('formats an unconfirmed routine warning', () => {
     const text = formatRoutine('2026-11-02', getRoutineForDate(config, '2026-11-02'), true);
     assert.match(text, /Published without CR\/ACR confirmation/);
     assert.match(text, /Data Structures/);
+});
+
+test('groups adjacent identical classes into one long period', () => {
+    const entries = getRoutineForDate(config, '2026-11-02');
+    entries[1] = { ...entries[1], class: 'Software Development', room: 'CX402' };
+    entries[2] = { ...entries[2], class: 'Software Development', room: 'CX402' };
+    const groups = groupRoutineEntries(entries);
+    const softwareGroup = groups.find(group => group.class === 'Software Development');
+    assert.deepEqual(
+        [softwareGroup.periodStart, softwareGroup.periodEnd, softwareGroup.start, softwareGroup.end],
+        ['2', '3', '11:30', '13:10']
+    );
+    assert.match(formatRoutine('2026-11-02', entries), /Periods 2-3/);
+});
+
+test('parses only ascending single periods or consecutive ranges', () => {
+    assert.deepEqual(parsePeriodSelection('5'), ['5']);
+    assert.deepEqual(parsePeriodSelection('5-7'), ['5', '6', '7']);
+    assert.equal(parsePeriodSelection('7-5'), undefined);
+    assert.equal(parsePeriodSelection('2-8'), undefined);
 });

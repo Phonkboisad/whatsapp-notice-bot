@@ -82,6 +82,7 @@ end to edit a different day:
 CR routine review
 CR routine confirm
 CR routine room 5 CX999
+CR routine room 5-7 CX999
 CR routine class 2 Operating Systems
 CR routine cancel 6
 CR routine room next CX999 announce
@@ -92,7 +93,15 @@ Use `CR routine` in any supported group to view tomorrow's routine. Room,
 class, and cancellation changes are stored as date-specific overrides, so the
 weekly routine remains reusable. Add `announce` to a change command to
 immediately publish that change to the Notice group with all-member mentions;
-use `next` to target the next upcoming class today.
+use `next` to target the next upcoming class today. A period range such as
+`5-7` applies only when all selected periods are consecutive and currently
+have the same class, teacher, and room. Breaks and mismatched periods are
+rejected.
+
+The date is optional because normal confirmation edits target tomorrow's
+routine. Provide `YYYY-MM-DD` only when editing another calendar day or
+correcting an already stored date-specific override. The weekly routine repeats
+on different dates, so the explicit date prevents changing the wrong day.
 
 ## Commands
 
@@ -108,6 +117,7 @@ use `next` to target the next upcoming class today.
 | `CR rsrc <subject>` | Notice, Discussion, mod groups, admins | Open a resource directly, such as `CR rsrc DS` |
 | `CR rsrc set <subject> <https://link>` | Mod groups, bot admins | Add a subject or replace its resource link |
 | `CR games` | Notice, Discussion, mod groups | Show CSE game commands |
+| `CR routine` | Supported groups | View tomorrow's grouped class routine |
 | `CR hunt`, `CR dig` | Notice, Discussion, mod groups | Play a short CSE-themed game (10 tries per member, per game, per group, daily) |
 | `CR wallet`, `CR leaderboard` | Notice, Discussion, mod groups | Check game points or the group's top balances |
 | `CR transfer @mention <amount>` | Notice, Discussion, mod groups | Transfer fictional game points to a member |
