@@ -20,6 +20,7 @@ import {
     sanitizeGameName,
     transferGamePoints as applyGamePointTransfer
 } from './cse-game.js';
+import { parseDhakaDeadlineInput } from './deadline-utils.js';
 
 const NOTICE_GROUP_JID = '120363400837000305@g.us';
 const DISCUSSION_GROUP_JID = '120363406812832614@g.us';
@@ -616,33 +617,6 @@ function getMessageSenderUserJid(key, remoteJid) {
         normalizeBlockedUserJid(remoteJid);
 }
 
-function parseDhakaDeadlineInput(dateStr, timeStr = '09:00') {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
-    const timeMatch = /^(\d{1,2}):(\d{2})$/.exec(timeStr.trim());
-    if (!match || !timeMatch) return undefined;
-
-    const year = Number(match[1]);
-    const month = Number(match[2]);
-    const day = Number(match[3]);
-    const hour = Number(timeMatch[1]);
-    const minute = Number(timeMatch[2]);
-
-    const daysInMonth = month >= 1 && month <= 12
-        ? new Date(Date.UTC(year, month, 0)).getUTCDate()
-        : 0;
-    if (
-        month < 1 || month > 12 ||
-        day < 1 || day > daysInMonth ||
-        hour > 23 || minute > 59
-    ) {
-        return undefined;
-    }
-
-    const isoString = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+06:00`;
-    const timestamp = Date.parse(isoString);
-    return Number.isFinite(timestamp) ? timestamp : undefined;
-}
-
 function getActiveSortedDeadlines() {
     const now = Date.now();
     return botState.deadlines
@@ -1029,7 +1003,7 @@ function formatCrHelp({ commands, images }, showModManual) {
         textCommands,
         '',
         '⏳ *Deadlines & CTs (Mod & Admin)*',
-        '• `CR deadline add YYYY-MM-DD [HH:MM] | <title>`',
+        '• `CR deadline add YYYY-M-D [HH:MM] | <title>` (future date/time, Asia/Dhaka)',
         '• `CR deadline remove <number>`',
         '• `CR deadline clear`',
         '',
@@ -1306,11 +1280,11 @@ async function startBot() {
                     }
 
                     if (action === 'add') {
-                        const addParts = rest.match(/^(\d{4}-\d{2}-\d{2})(?:\s+(\d{1,2}:\d{2}))?\s*\|\s*(.+)$/);
+                        const addParts = rest.match(/^(\d{4}-\d{1,2}-\d{1,2})(?:\s+(\d{1,2}:\d{2}))?\s*\|\s*(.+)$/);
                         if (!addParts) {
                             await sock.sendMessage(
                                 senderJid,
-                                { text: 'Usage: `CR deadline add YYYY-MM-DD [HH:MM] | <Title>`\nExample: `CR deadline add 2026-10-25 10:30 | CSE-2101 CT-2 (Linked Lists)`' },
+                                { text: 'Usage: `CR deadline add YYYY-M-D [HH:MM] | <Title>`\nExample: `CR deadline add 2026-10-25 10:30 | CSE-2101 CT-2 (Linked Lists)`' },
                                 { quoted: m }
                             );
                             continue;
@@ -1318,10 +1292,18 @@ async function startBot() {
 
                         const timestamp = parseDhakaDeadlineInput(addParts[1], addParts[2] || '09:00');
                         const title = addParts[3].trim().replace(/\s+/g, ' ').slice(0, 120);
-                        if (!timestamp || timestamp <= Date.now() || !title) {
+                        if (!timestamp || !title) {
                             await sock.sendMessage(
                                 senderJid,
-                                { text: 'Please provide a valid future date/time (Asia/Dhaka) and title.' },
+                                { text: 'Please provide a valid date/time (Asia/Dhaka) and title.' },
+                                { quoted: m }
+                            );
+                            continue;
+                        }
+                        if (timestamp <= Date.now()) {
+                            await sock.sendMessage(
+                                senderJid,
+                                { text: 'That deadline is already in the past. Please provide a future date/time (Asia/Dhaka).' },
                                 { quoted: m }
                             );
                             continue;

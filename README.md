@@ -88,6 +88,13 @@ The bot must be a member of each group where it should answer. Changes to
 Use `CR help` in the Discussion group for its smaller command guide. Use it in
 a mod group for the full manual, including admin-only commands.
 
+Deadline dates accept either `YYYY-M-D` or `YYYY-MM-DD`; the optional time is
+interpreted in Asia/Dhaka and must be in the future. For example:
+
+```text
+CR deadline add 2026-11-2 13:50 | CSE-2322 LabTest (CX-201)
+```
+
 Use `CR menu` for academic shortcuts, bus schedules, study resources, CSE
 mini-games, quiz commands, and GIFs. `CR help` in the Discussion group presents
 these as separate sections, with a dedicated game guide. In the resource
