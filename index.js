@@ -409,7 +409,7 @@ function isValidRoutinePendingChange(item) {
         typeof item.id === 'string' &&
         typeof item.dateKey === 'string' &&
         Array.isArray(item.periodIds) &&
-        item.periodIds.every(periodId => /^[1-7]$/.test(periodId)) &&
+        item.periodIds.every(periodId => /^[1-6]$/.test(periodId)) &&
         (item.action === 'room' || item.action === 'cancel') &&
         typeof item.createdAt === 'number' &&
         Number.isFinite(item.createdAt);
@@ -1487,7 +1487,7 @@ async function startBot() {
 
             if (canManageBot) {
                 const shortRoutineChange = text.match(
-                    /^\s*CR\s+(?:routine\s+)?(room|cancel)\s+([1-7](?:-[1-7])?)(?:\s+(.+?))?\s*$/i
+                    /^\s*CR\s+(?:routine\s+)?(room|cancel)\s+([1-6](?:-[1-6])?)(?:\s+(.+?))?\s*$/i
                 );
                 if (shortRoutineChange) {
                     const action = shortRoutineChange[1].toLowerCase();

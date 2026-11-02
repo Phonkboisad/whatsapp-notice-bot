@@ -8,10 +8,10 @@ export const ROUTINE_PERIODS = [
     { id: '1', label: 'Male 1st', start: '10:50', end: '11:30' },
     { id: '2', label: 'Male 2nd', start: '11:30', end: '12:20' },
     { id: '3', label: 'Male 3rd', start: '12:20', end: '13:10' },
-    { id: '4', label: 'Male Break', start: '13:00', end: '13:50', break: true },
-    { id: '5', label: 'Male 4th', start: '13:50', end: '14:40' },
-    { id: '6', label: 'Male 5th', start: '14:40', end: '15:30' },
-    { id: '7', label: 'Male 6th', start: '15:30', end: '16:20' }
+    { id: 'break', label: 'Break', start: '13:10', end: '13:50', break: true },
+    { id: '4', label: 'Male 4th', start: '13:50', end: '14:40' },
+    { id: '5', label: 'Male 5th', start: '14:40', end: '15:30' },
+    { id: '6', label: 'Male 6th', start: '15:30', end: '16:20' }
 ];
 
 export function getDhakaParts(timestamp = Date.now()) {
@@ -128,6 +128,13 @@ export function findNextPeriod(config, dateKey, now = Date.now(), overrides = {}
     });
 }
 
+function formatTime12(time) {
+    const [hour, minute] = time.split(':').map(Number);
+    const suffix = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${String(minute).padStart(2, '0')} ${suffix}`;
+}
+
 function canMergeRoutineEntries(previous, current) {
     return !previous.break &&
         !current.break &&
@@ -168,7 +175,7 @@ export function groupRoutineEntries(entries) {
 
 export function parsePeriodSelection(value) {
     if (typeof value !== 'string') return undefined;
-    const match = /^(?:([1-7])|([1-7])-([1-7]))$/.exec(value.trim());
+    const match = /^(?:([1-6])|([1-6])-([1-6]))$/.exec(value.trim());
     if (!match) return undefined;
     const start = Number(match[1] || match[2]);
     const end = Number(match[1] || match[3]);
@@ -179,24 +186,22 @@ export function parsePeriodSelection(value) {
 export function formatRoutine(dateKey, entries, unconfirmed = false) {
     const day = getDateWeekday(dateKey);
     const lines = [
-        '╭━━ 📚 *CLASS ROUTINE* ━━╮',
-        `┃ 📅 *${day}${DAY_NAMES.includes(dateKey) ? '' : `, ${dateKey}`}*`,
-        '╰━━━━━━━━━━━━━━━━━━━━╯'
+        `📚 *CLASS LINEUP — ${day}${DAY_NAMES.includes(dateKey) ? '' : `, ${dateKey}`}*`
     ];
     if (unconfirmed) lines.push('\n⚠️ _Published without CR/ACR confirmation._');
     const groups = groupRoutineEntries(entries);
     if (!groups.length) return `${lines.join('\n')}\n\n📭 _No scheduled classes._`;
     for (const group of groups) {
         const periodLabel = group.periodStart === group.periodEnd
-            ? `Period ${group.periodStart}`
-            : `Periods ${group.periodStart}-${group.periodEnd}`;
+            ? `P${group.periodStart}`
+            : `P${group.periodStart}-${group.periodEnd}`;
         const details = [
-            `⏰ *${group.start}–${group.end}* · _${periodLabel}_`,
+            `• *${periodLabel}* ${formatTime12(group.start)}–${formatTime12(group.end)}`,
             `${group.cancelled ? '❌' : '📘'} *${group.class}*`,
             group.teacher && `👨‍🏫 ${group.teacher}`,
-            group.room && `📍 Room: *${group.room}*`
+            group.room && `📍 ${group.room}`
         ].filter(Boolean);
-        lines.push(`\n${details.join('\n')}`);
+        lines.push(details.join(' · '));
     }
     return lines.join('\n');
 }
@@ -211,7 +216,7 @@ export function formatRoutineReview(dateKey, entries) {
     return [
         `📝 *Routine review — ${dateKey}*`,
         ...groupRoutineEntries(entries).map(group =>
-            `• *${group.periodStart === group.periodEnd ? `P${group.periodStart}` : `P${group.periodStart}-${group.periodEnd}`}* ${group.start}-${group.end} — ${group.cancelled ? '❌ Cancelled' : group.class}${group.room ? ` · ${group.room}` : ''}`
+            `• *${group.periodStart === group.periodEnd ? `P${group.periodStart}` : `P${group.periodStart}-${group.periodEnd}`}* ${formatTime12(group.start)}-${formatTime12(group.end)} — ${group.cancelled ? '❌ Cancelled' : group.class}${group.room ? ` · ${group.room}` : ''}`
         )
     ].join('\n');
 }

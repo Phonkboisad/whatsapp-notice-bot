@@ -31,6 +31,8 @@ test('selects a weekday routine and preserves period times', () => {
     assert.equal(entries.length, ROUTINE_PERIODS.length);
     assert.equal(entries[0].class, 'Data Structures');
     assert.equal(entries[0].start, '10:50');
+    assert.equal(entries[3].id, 'break');
+    assert.equal(entries[3].class, 'Break');
 });
 
 test('applies room and cancellation overrides without mutating the base routine', () => {
@@ -55,6 +57,9 @@ test('formats an unconfirmed routine warning', () => {
     const text = formatRoutine('2026-11-02', getRoutineForDate(config, '2026-11-02'), true);
     assert.match(text, /Published without CR\/ACR confirmation/);
     assert.match(text, /Data Structures/);
+    assert.match(text, /10:50 AM–11:30 AM/);
+    assert.match(text, /CLASS LINEUP/);
+    assert.doesNotMatch(text, /Break/);
 });
 
 test('groups adjacent identical classes into one long period', () => {
@@ -67,14 +72,14 @@ test('groups adjacent identical classes into one long period', () => {
         [softwareGroup.periodStart, softwareGroup.periodEnd, softwareGroup.start, softwareGroup.end],
         ['2', '3', '11:30', '13:10']
     );
-    assert.match(formatRoutine('2026-11-02', entries), /Periods 2-3/);
+    assert.match(formatRoutine('2026-11-02', entries), /P2-3/);
 });
 
 test('parses only ascending single periods or consecutive ranges', () => {
     assert.deepEqual(parsePeriodSelection('5'), ['5']);
-    assert.deepEqual(parsePeriodSelection('5-7'), ['5', '6', '7']);
-    assert.equal(parsePeriodSelection('7-5'), undefined);
-    assert.equal(parsePeriodSelection('2-8'), undefined);
+    assert.deepEqual(parsePeriodSelection('5-6'), ['5', '6']);
+    assert.equal(parsePeriodSelection('6-5'), undefined);
+    assert.equal(parsePeriodSelection('2-7'), undefined);
 });
 
 test('targets today only during the inclusive daytime command window', () => {
@@ -90,7 +95,7 @@ test('targets today only during the inclusive daytime command window', () => {
 
 test('formats a complete weekly routine', () => {
     const weekly = formatWeeklyRoutine(config);
-    assert.match(weekly, /CLASS ROUTINE/);
+    assert.match(weekly, /CLASS LINEUP/);
     assert.match(weekly, /Monday/);
     assert.doesNotMatch(weekly, /Thursday/);
 });
